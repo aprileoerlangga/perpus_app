@@ -2,10 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:perpus_app/api/api_service.dart';
 import 'package:perpus_app/models/book.dart';
 import 'package:perpus_app/screens/book/book_form_screen.dart';
+import 'package:perpus_app/screens/peminjaman/peminjaman_form_screen.dart'; // Import form
 
 class BookDetailScreen extends StatefulWidget {
   final int bookId;
-  const BookDetailScreen({super.key, required this.bookId});
+  final bool isFromMember; // Tambahkan properti ini
+
+  const BookDetailScreen({
+    super.key, 
+    required this.bookId,
+    this.isFromMember = false, // Beri nilai default false
+  });
 
   @override
   State<BookDetailScreen> createState() => _BookDetailScreenState();
@@ -75,34 +82,54 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       appBar: AppBar(
         title: const Text('Detail Buku'),
         actions: [
-          // Tombol Edit dan Delete akan muncul di sini
-          FutureBuilder<Book>(
-            future: _bookFuture,
-            builder: (context, snapshot) {
-              // Hanya tampilkan tombol jika data sudah berhasil dimuat
-              if (snapshot.hasData) {
-                return Row(
-                  children: [
-                    // == TOMBOL EDIT BARU ==
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: () => _navigateToEditPage(snapshot.data!),
-                      tooltip: 'Edit Buku',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: _deleteBook,
-                      tooltip: 'Hapus Buku',
-                    ),
-                  ],
-                );
-              }
-              // Sembunyikan tombol jika data sedang loading atau error
-              return const SizedBox.shrink();
-            },
-          ),
+          // --- UBAH LOGIKA DI SINI ---
+          // Tampilkan tombol hanya jika TIDAK diakses dari member
+          if (!widget.isFromMember)
+            FutureBuilder<Book>(
+              future: _bookFuture,
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () => _navigateToEditPage(snapshot.data!),
+                        tooltip: 'Edit Buku',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: _deleteBook,
+                        tooltip: 'Hapus Buku',
+                      ),
+                    ],
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          // --- AKHIR PERUBAHAN ---
         ],
       ),
+      // --- TAMBAHKAN FLOATING ACTION BUTTON DI SINI ---
+      floatingActionButton: widget.isFromMember
+          ? FutureBuilder<Book>(
+              future: _bookFuture,
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return FloatingActionButton.extended(
+                    onPressed: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => PeminjamanFormScreen(book: snapshot.data!),
+                      ));
+                    },
+                    label: const Text('Pinjam Buku'),
+                    icon: const Icon(Icons.shopping_cart_checkout),
+                  );
+                }
+                return const SizedBox.shrink(); // Sembunyikan jika buku belum termuat
+              },
+            )
+          : null, // Jangan tampilkan tombol jika bukan member
       body: FutureBuilder<Book>(
         future: _bookFuture,
         builder: (context, snapshot) {

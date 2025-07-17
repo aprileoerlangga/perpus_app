@@ -21,18 +21,17 @@ class Book {
 
   factory Book.fromJson(Map<String, dynamic> json) {
     return Book(
-      // Gunakan operator '??' untuk memberi nilai default jika null
-      id: json['id'] ?? 0, 
+      id: json['id'] ?? 0,
       judul: json['judul'] ?? 'Tanpa Judul',
       pengarang: json['pengarang'] ?? 'Tanpa Pengarang',
       penerbit: json['penerbit'] ?? 'Tanpa Penerbit',
       tahun: json['tahun'] ?? '-',
-      stok: json['stok'] ?? 0, 
-      
-      // Beri penanganan khusus jika seluruh objek kategori null
-      category: json['category'] != null
-          ? Category.fromJson(json['category'])
-          : Category(id: 0, name: 'Tanpa Kategori'),
+      stok: json['stok'] ?? 0,
+      // PERBAIKAN: Buat objek Category dummy karena API tidak menyediakannya di sini
+      category: Category(
+        id: json['category_id'] ?? 0,
+        name: 'Kategori', // Anda bisa beri nama default atau kosong
+      ),
     );
   }
 }

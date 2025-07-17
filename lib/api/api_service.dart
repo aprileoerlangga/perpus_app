@@ -51,6 +51,12 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_role', role);
   }
+  
+  // TAMBAHKAN FUNGSI UNTUK MENYIMPAN USER ID
+  Future<void> _saveUserId(int id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('user_id', id);
+  }
 
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -67,11 +73,18 @@ class ApiService {
     return prefs.getString('user_role');
   }
 
+  // TAMBAHKAN FUNGSI UNTUK MENGAMBIL USER ID
+  Future<int?> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('user_id');
+  }
+
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
     await prefs.remove('user_name');
     await prefs.remove('user_role');
+    await prefs.remove('user_id'); // Hapus juga user_id saat logout
   }
 
   // --- AUTH METHODS ---
@@ -83,6 +96,7 @@ class ApiService {
         if (data != null && data['token'] != null && data['user'] != null) {
           await _saveToken(data['token']);
           await _saveUserName(data['user']['name']);
+          await _saveUserId(data['user']['id']); // SIMPAN USER ID DI SINI
           if (data['user']['roles'] is List && data['user']['roles'].isNotEmpty) {
             await _saveUserRole(data['user']['roles'][0]['name']);
           } else {
@@ -307,24 +321,95 @@ class ApiService {
       final response = await _dio.get('/peminjaman/all', queryParameters: {'page': page});
       final responseData = response.data;
 
-      // PERBAIKAN: Berdasarkan PeminjamanController, path yang benar adalah 'data' -> 'peminjaman'
-      // dan objek 'peminjaman' ini adalah objek pagination itu sendiri.
+      // PERBAIKAN: Sesuaikan dengan struktur JSON yang sebenarnya
       if (responseData is Map &&
           responseData['data'] is Map &&
-          responseData['data']['peminjaman'] is Map &&
-          responseData['data']['peminjaman']['data'] is List) {
+          responseData['data']['peminjaman'] is List) { // Cek jika 'peminjaman' adalah sebuah List
 
-        // Ambil objek pagination dari 'peminjaman'
-        final peminjamanData = responseData['data']['peminjaman'];
-        final List peminjamanListJson = peminjamanData['data'];
+        // Langsung ambil list dari 'peminjaman'
+        final List peminjamanListJson = responseData['data']['peminjaman'];
 
-        final List<Peminjaman> list = peminjamanListJson.map((json) => Peminjaman.fromJson(json)).toList();
+        final List<Peminjaman> list = peminjamanListJson
+            .map((json) => Peminjaman.fromJson(json as Map<String, dynamic>))
+            .toList();
 
-        final bool hasMore = peminjamanData['current_page'] < peminjamanData['last_page'];
+        // Asumsi sederhana: jika list yang didapat kurang dari 10, anggap tidak ada halaman lagi.
+        // API Anda tidak menyertakan info paginasi di endpoint ini.
+        final bool hasMore = list.length >= 10; 
 
         return PeminjamanResponse(peminjamanList: list, hasMore: hasMore);
       } else {
+        // Jika struktur tidak sesuai, lempar error
         throw Exception('Struktur data peminjaman dari API tidak terduga.');
+      }
+    } on DioException catch (e) {
+      // Menangani error dari Dio dengan lebih baik
+      print(e.response?.data);
+      throw Exception('Gagal memuat riwayat peminjaman. Error: ${e.message}');
+    } catch (e) {
+      throw Exception('Gagal memuat riwayat peminjaman.');
+    }
+  }
+
+  // FUNGSI BARU UNTUK MEMBUAT PEMINJAMAN
+  Future<bool> createPeminjaman({
+    required int bookId,
+    required int memberId,
+    required String tanggalPinjam,
+    required String tanggalKembali,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/peminjaman/book/$bookId/member/$memberId',
+        data: {
+          'tanggal_peminjaman': tanggalPinjam,
+          'tanggal_pengembalian': tanggalKembali,
+        },
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      print('Gagal membuat peminjaman: $e');
+      return false;
+    }
+  }
+
+  // FUNGSI BARU UNTUK MENGEMBALIKAN BUKU
+  Future<bool> returnBook(int peminjamanId) async {
+    try {
+      // Endpoint ini akan mengubah status peminjaman di server
+      final response = await _dio.post('/peminjaman/$peminjamanId/return');
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Gagal mengembalikan buku: $e');
+      return false;
+    }
+  }
+
+  // FUNGSI BARU UNTUK MENDAPATKAN RIWAYAT PEMINJAMAN MILIK MEMBER
+  Future<PeminjamanResponse> getMyPeminjamanList({int page = 1, String? query}) async {
+    final memberId = await getUserId();
+    if (memberId == null) {
+      throw Exception('User tidak ditemukan, silakan login ulang.');
+    }
+    try {
+      final response = await _dio.get(
+        '/peminjaman/member/$memberId/all',
+        queryParameters: {'page': page, 'search': query},
+      );
+      final responseData = response.data;
+
+      if (responseData is Map &&
+          responseData['data'] is Map &&
+          responseData['data']['peminjaman'] is List) {
+        
+        final peminjamanData = responseData['data']['peminjaman'];
+        final List<dynamic> peminjamanListJson = peminjamanData['data'];
+        final List<Peminjaman> peminjamanList = peminjamanListJson.map((json) => Peminjaman.fromJson(json)).toList();
+        final bool hasMore = peminjamanData['current_page'] < peminjamanData['last_page'];
+        
+        return PeminjamanResponse(peminjamanList: peminjamanList, hasMore: hasMore);
+      } else {
+        return PeminjamanResponse(peminjamanList: [], hasMore: false);
       }
     } catch (e) {
       throw Exception('Gagal memuat riwayat peminjaman.');

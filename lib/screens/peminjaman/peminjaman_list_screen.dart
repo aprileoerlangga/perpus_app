@@ -100,10 +100,8 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> {
     }
     return ListView.builder(
       controller: _scrollController,
-      // Tambah 1 item untuk loading indicator di bawah
       itemCount: _peminjamanList.length + (_hasMore ? 1 : 0),
       itemBuilder: (context, index) {
-        // Jika ini adalah item terakhir dan masih ada data, tampilkan loading
         if (index == _peminjamanList.length) {
           return const Padding(
             padding: EdgeInsets.all(16.0),
@@ -111,25 +109,74 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> {
           );
         }
         final peminjaman = _peminjamanList[index];
+
         return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: peminjaman.status == 'dipinjam' ? Colors.orange.shade100 : Colors.green.shade100,
-              child: Tooltip(
-                message: peminjaman.status.toUpperCase(),
-                child: Icon(
-                  peminjaman.status == 'dipinjam' ? Icons.hourglass_top_rounded : Icons.check_circle_outline_rounded,
-                  color: peminjaman.status == 'dipinjam' ? Colors.orange.shade800 : Colors.green.shade800,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Baris Judul Buku
+                Text(
+                  peminjaman.book.judul,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
+                const Divider(height: 16),
+
+                // Informasi Detail Peminjaman
+                _buildInfoRow(
+                  icon: Icons.person_outline,
+                  label: 'Peminjam',
+                  value: peminjaman.user.name,
+                ),
+                const SizedBox(height: 6),
+                _buildInfoRow(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Tgl. Pinjam',
+                  value: peminjaman.tanggalPinjam,
+                ),
+                const SizedBox(height: 6),
+                _buildInfoRow(
+                  icon: Icons.event_available_outlined,
+                  label: 'Batas Kembali',
+                  value: peminjaman.tanggalKembali ?? '-',
+                ),
+                const SizedBox(height: 6),
+                // BARIS STATUS DIUBAH DI SINI
+                _buildInfoRow(
+                  icon: Icons.info_outline,
+                  label: 'Status',
+                  value: peminjaman.status,
+                ),
+              ],
             ),
-            title: Text(peminjaman.book.judul, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('Peminjam: ${peminjaman.user.name}\nTgl Pinjam: ${peminjaman.tanggalPinjam}'),
-            isThreeLine: true,
           ),
         );
       },
+    );
+  }
+
+  // Widget bantuan untuk membuat baris info yang rapi
+  Widget _buildInfoRow({required IconData icon, required String label, required String value}) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        Text('$label: ', style: TextStyle(color: Colors.grey.shade700)),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

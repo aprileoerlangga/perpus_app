@@ -24,19 +24,26 @@ class Peminjaman {
 
   // Factory constructor ini mengubah data JSON dari API menjadi objek Peminjaman.
   factory Peminjaman.fromJson(Map<String, dynamic> json) {
-    // Objek default ini akan mencegah error jika data 'user' atau 'book' tidak ada (null) dalam respons API.
     final defaultUser = User(id: 0, name: 'Pengguna Tidak Ditemukan', email: '', username: '');
-    final defaultCategory = Category(id: 0, name: 'Tanpa Kategori');
-    final defaultBook = Book(id: 0, judul: 'Buku Tidak Ditemukan', pengarang: '', penerbit: '', tahun: '', stok: 0, category: defaultCategory);
+    final defaultBook = Book.fromJson({
+      'id': 0,
+      'judul': 'Buku Tidak Ditemukan',
+      'pengarang': '',
+      'penerbit': '',
+      'tahun': '',
+      'stok': 0,
+      'category_id': 0
+    });
 
     return Peminjaman(
       id: json['id'] ?? 0,
-      tanggalPinjam: json['tanggal_pinjam'] ?? '-',
-      tanggalKembali: json['tanggal_kembali'] ?? '-',
+      // SESUAIKAN DENGAN KEY DARI JSON
+      tanggalPinjam: json['tanggal_peminjaman'] ?? '-',
+      tanggalKembali: json['tanggal_pengembalian'] ?? '-',
       tanggalPengembalian: json['tanggal_pengembalian'],
-      status: json['status'] ?? 'unknown',
-      // Jika data user/book ada, gunakan itu. Jika tidak, gunakan objek default.
-      user: json['user'] != null ? User.fromJson(json['user']) : defaultUser,
+      status: json['status']?.toString() ?? 'unknown',
+      // PERBAIKI: Gunakan key 'member' dari JSON, bukan 'user'
+      user: json['member'] != null ? User.fromJson(json['member']) : defaultUser,
       book: json['book'] != null ? Book.fromJson(json['book']) : defaultBook,
     );
   }
