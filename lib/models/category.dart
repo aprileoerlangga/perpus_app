@@ -4,10 +4,11 @@ class Category {
 
   Category({required this.id, required this.name});
 
+  // Factory constructor untuk membuat instance Category dari JSON
   factory Category.fromJson(Map<String, dynamic> json) {
     return Category(
-      id: json['id'],
-      name: json['nama_kategori'],
+      id: json['id'] ?? 0,
+      name: json['nama_kategori'] ?? 'Tanpa Kategori',
     );
   }
 }

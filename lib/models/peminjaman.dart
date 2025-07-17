@@ -37,12 +37,10 @@ class Peminjaman {
 
     return Peminjaman(
       id: json['id'] ?? 0,
-      // SESUAIKAN DENGAN KEY DARI JSON
       tanggalPinjam: json['tanggal_peminjaman'] ?? '-',
-      tanggalKembali: json['tanggal_pengembalian'] ?? '-',
-      tanggalPengembalian: json['tanggal_pengembalian'],
+      tanggalKembali: json['tanggal_pengembalian'] ?? '-', // Batas waktu pengembalian
+      tanggalPengembalian: json['tanggal_dikembalikan'], // Tanggal aktual pengembalian (bisa null)
       status: json['status']?.toString() ?? 'unknown',
-      // PERBAIKI: Gunakan key 'member' dari JSON, bukan 'user'
       user: json['member'] != null ? User.fromJson(json['member']) : defaultUser,
       book: json['book'] != null ? Book.fromJson(json['book']) : defaultBook,
     );

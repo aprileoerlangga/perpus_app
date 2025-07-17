@@ -2,11 +2,11 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:perpus_app/models/book.dart';
 import 'package:perpus_app/models/book_response.dart';
-import 'package:perpus_app/models/category.dart';
-import 'package:perpus_app/models/user.dart';
-import 'package:perpus_app/models/user_response.dart';
+import 'package:perpus_app/models/category.dart'; // Pastikan import ini ada
 import 'package:perpus_app/models/peminjaman.dart';
 import 'package:perpus_app/models/peminjaman_response.dart';
+import 'package:perpus_app/models/user.dart';
+import 'package:perpus_app/models/user_response.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
@@ -155,26 +155,48 @@ class ApiService {
     }
   }
 
-  Future<BookResponse> getBooks({String? query, int page = 1}) async {
+  Future<BookResponse> getBooks({int page = 1, String? query, int? categoryId}) async {
     try {
-      final Map<String, dynamic> queryParameters = {'page': page};
-      if (query != null && query.isNotEmpty) {
-        queryParameters['search'] = query;
-      }
-      final response = await _dio.get('/book/all', queryParameters: queryParameters);
+      String endpoint = categoryId != null
+          ? '/book/filter/$categoryId'
+          : '/book/all';
+
+      final response = await _dio.get(
+        endpoint,
+        queryParameters: {
+          'page': page,
+          if (query != null && query.isNotEmpty) 'search': query,
+        },
+      );
+      
       final responseData = response.data;
-      if (responseData is Map<String, dynamic> &&
-          responseData['data']['books'] is Map<String, dynamic> &&
-          responseData['data']['books']['data'] is List) {
+
+      // ==================== LOGIKA PARSING FLEKSIBEL ====================
+      if (responseData is Map<String, dynamic> && responseData['data'] != null) {
+        final data = responseData['data'];
         
-        final bookData = responseData['data']['books'];
-        final List<dynamic> bookListJson = bookData['data'];
-        final List<Book> books = bookListJson.map((json) => Book.fromJson(json)).toList();
-        final bool hasMore = bookData['current_page'] < bookData['last_page'];
-        return BookResponse(books: books, hasMore: hasMore);
-      } else {
-        return BookResponse(books: [], hasMore: false);
+        // Cek 1: Apakah responsnya berhalaman (paginated)?
+        if (data['books'] is Map<String, dynamic> && data['books']['data'] is List) {
+          final bookData = data['books'];
+          final List<dynamic> bookListJson = bookData['data'];
+          final List<Book> books = bookListJson.map((json) => Book.fromJson(json)).toList();
+          final bool hasMore = bookData['current_page'] < bookData['last_page'];
+          return BookResponse(books: books, hasMore: hasMore);
+        }
+        
+        // Cek 2: Apakah responsnya adalah daftar sederhana (simple list)?
+        else if (data['books'] is List) {
+          final List<dynamic> bookListJson = data['books'];
+          final List<Book> books = bookListJson.map((json) => Book.fromJson(json)).toList();
+          // Jika ini adalah daftar sederhana, kita anggap tidak ada halaman lagi
+          return BookResponse(books: books, hasMore: false);
+        }
       }
+      
+      // Jika tidak ada format yang cocok, kembalikan list kosong
+      return BookResponse(books: [], hasMore: false);
+      // ================================================================
+
     } catch (e) {
       throw Exception('Gagal mengambil data buku.');
     }
@@ -232,7 +254,7 @@ class ApiService {
       if (query != null && query.isNotEmpty) {
         queryParameters['search'] = query;
       }
-      final response = await _dio.get('/category/all/all', queryParameters: queryParameters);
+      final response = await _dio.get('/category/all/all', queryParameters: queryParameters); 
       final responseData = response.data;
       if (responseData is Map<String, dynamic> &&
           responseData['data']['categories'] is List) {
@@ -242,6 +264,7 @@ class ApiService {
         return [];
       }
     } catch (e) {
+      // Jangan gunakan print di production, cukup lempar exception
       throw Exception('Gagal memuat kategori.');
     }
   }
@@ -376,8 +399,10 @@ class ApiService {
   // FUNGSI BARU UNTUK MENGEMBALIKAN BUKU
   Future<bool> returnBook(int peminjamanId) async {
     try {
-      // Endpoint ini akan mengubah status peminjaman di server
-      final response = await _dio.post('/peminjaman/$peminjamanId/return');
+      // Kita panggil endpoint 'accept' karena ia mengatur status ke '2' (Dikembalikan)
+      final response = await _dio.get('/peminjaman/book/$peminjamanId/accept');
+      
+      // Ingat: Konsekuensinya adalah stok buku tidak kembali bertambah.
       return response.statusCode == 200;
     } catch (e) {
       print('Gagal mengembalikan buku: $e');
@@ -385,33 +410,46 @@ class ApiService {
     }
   }
 
-  // FUNGSI BARU UNTUK MENDAPATKAN RIWAYAT PEMINJAMAN MILIK MEMBER
+  // FUNGSI UNTUK MENDAPATKAN RIWAYAT PEMINJAMAN MILIK MEMBER
   Future<PeminjamanResponse> getMyPeminjamanList({int page = 1, String? query}) async {
+    // 1. Dapatkan ID user yang sedang login (ini sudah benar)
     final memberId = await getUserId();
     if (memberId == null) {
-      throw Exception('User tidak ditemukan, silakan login ulang.');
+      return PeminjamanResponse(peminjamanList: [], hasMore: false);
     }
     try {
-      final response = await _dio.get(
-        '/peminjaman/member/$memberId/all',
-        queryParameters: {'page': page, 'search': query},
-      );
+      // 2. Ambil SEMUA data peminjaman dari server
+      // Kita abaikan parameter 'page' dan 'query' karena kita akan filter manual
+      final response = await _dio.get('/peminjaman/all');
       final responseData = response.data;
 
-      if (responseData is Map &&
-          responseData['data'] is Map &&
+      if (responseData is Map<String, dynamic> &&
+          responseData['data'] is Map<String, dynamic> &&
           responseData['data']['peminjaman'] is List) {
-        
-        final peminjamanData = responseData['data']['peminjaman'];
-        final List<dynamic> peminjamanListJson = peminjamanData['data'];
-        final List<Peminjaman> peminjamanList = peminjamanListJson.map((json) => Peminjaman.fromJson(json)).toList();
-        final bool hasMore = peminjamanData['current_page'] < peminjamanData['last_page'];
-        
-        return PeminjamanResponse(peminjamanList: peminjamanList, hasMore: hasMore);
+
+        final List<dynamic> allPeminjamanJson = responseData['data']['peminjaman'];
+
+        // Ubah semua data JSON menjadi objek Peminjaman
+        final List<Peminjaman> allPeminjaman = allPeminjamanJson
+            .map((json) => Peminjaman.fromJson(json as Map<String, dynamic>))
+            .toList();
+
+        // ==================== LOGIKA FILTER DI SINI ====================
+        // Saring daftar lengkap untuk hanya menampilkan data yang cocok dengan ID member
+        final List<Peminjaman> myPeminjaman = allPeminjaman
+            .where((peminjaman) => peminjaman.user.id == memberId)
+            .toList();
+        // ================================================================
+
+        // Kirimkan data yang sudah difilter ke UI
+        return PeminjamanResponse(peminjamanList: myPeminjaman, hasMore: false);
+
       } else {
         return PeminjamanResponse(peminjamanList: [], hasMore: false);
       }
+
     } catch (e) {
+      print("Error di getMyPeminjamanList: $e");
       throw Exception('Gagal memuat riwayat peminjaman.');
     }
   }

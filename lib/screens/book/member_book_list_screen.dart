@@ -1,12 +1,14 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:perpus_app/api/api_service.dart';
 import 'package:perpus_app/models/book.dart';
 import 'package:perpus_app/models/book_response.dart';
+import 'package:perpus_app/models/category.dart';
 import 'package:perpus_app/screens/book/book_detail_screen.dart';
+import 'dart:async';
 
 class MemberBookListScreen extends StatefulWidget {
-  const MemberBookListScreen({super.key});
+  final Category? category;
+  const MemberBookListScreen({super.key, this.category});
 
   @override
   State<MemberBookListScreen> createState() => _MemberBookListScreenState();
@@ -15,14 +17,14 @@ class MemberBookListScreen extends StatefulWidget {
 class _MemberBookListScreenState extends State<MemberBookListScreen> {
   final ApiService _apiService = ApiService();
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
 
   List<Book> _books = [];
   int _currentPage = 1;
   bool _hasMore = true;
   bool _isLoading = true;
   bool _isLoadingMore = false;
-  final TextEditingController _searchController = TextEditingController();
-  Timer? _debounce;
 
   @override
   void initState() {
@@ -50,11 +52,11 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> {
   void _onSearchChanged() {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      _loadInitialBooks(query: _searchController.text);
+      _loadInitialBooks();
     });
   }
 
-  Future<void> _loadInitialBooks({String? query}) async {
+  Future<void> _loadInitialBooks() async {
     setState(() {
       _isLoading = true;
       _books = [];
@@ -62,7 +64,11 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> {
       _hasMore = true;
     });
     try {
-      final BookResponse response = await _apiService.getBooks(query: query, page: _currentPage);
+      final BookResponse response = await _apiService.getBooks(
+        query: _searchController.text,
+        page: _currentPage,
+        categoryId: widget.category?.id,
+      );
       setState(() {
         _books = response.books;
         _hasMore = response.hasMore;
@@ -75,9 +81,14 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> {
   }
 
   Future<void> _loadMoreBooks() async {
+    if (!_hasMore || _isLoadingMore) return;
     setState(() { _isLoadingMore = true; });
     try {
-      final BookResponse response = await _apiService.getBooks(query: _searchController.text, page: _currentPage + 1);
+      final BookResponse response = await _apiService.getBooks(
+        query: _searchController.text,
+        page: _currentPage + 1,
+        categoryId: widget.category?.id,
+      );
       setState(() {
         _books.addAll(response.books);
         _currentPage++;
@@ -93,39 +104,39 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Cari buku...',
-              border: InputBorder.none,
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(icon: const Icon(Icons.clear, color: Colors.grey), onPressed: () => _searchController.clear())
-                  : null,
+        title: Text(widget.category?.name ?? 'Daftar Buku'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(kToolbarHeight),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Cari buku...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+              ),
             ),
           ),
         ),
       ),
       body: RefreshIndicator(
-        onRefresh: () => _loadInitialBooks(query: _searchController.text),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _buildBookListView(),
+        onRefresh: _loadInitialBooks,
+        child: _buildBookListView(),
       ),
     );
   }
 
   Widget _buildBookListView() {
-    if (_books.isEmpty && !_isLoading) {
-      return Center(
-        child: Text(
-          _searchController.text.isEmpty
-              ? 'Tidak ada buku tersedia.'
-              : 'Tidak ada hasil untuk "${_searchController.text}".',
-        ),
-      );
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_books.isEmpty) {
+      return Center(child: Text('Tidak ada buku dalam kategori ini.'));
     }
     return ListView.builder(
       controller: _scrollController,
@@ -133,7 +144,7 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> {
       itemBuilder: (context, index) {
         if (index == _books.length) {
           return const Padding(
-            padding: EdgeInsets.all(8.0),
+            padding: EdgeInsets.all(16.0),
             child: Center(child: CircularProgressIndicator()),
           );
         }
@@ -141,15 +152,11 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> {
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           child: ListTile(
-            leading: CircleAvatar(child: Text(book.id.toString())),
             title: Text(book.judul, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(book.pengarang),
             onTap: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => BookDetailScreen(
-                  bookId: book.id,
-                  isFromMember: true, // Kirim flag ini untuk menandakan dari member
-                )),
+                MaterialPageRoute(builder: (_) => BookDetailScreen(bookId: book.id, isFromMember: true)),
               );
             },
           ),
