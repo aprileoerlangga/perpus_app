@@ -39,7 +39,7 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> {
   void _onScroll() {
     // Cek jika pengguna sudah scroll mendekati akhir daftar
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.9 &&
-        !_isLoadingMore && _hasMore) {
+        !_isLoadingMore && _hasMore && !_isLoading) {
       _loadMore();
     }
   }
@@ -110,6 +110,33 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> {
         }
         final peminjaman = _peminjamanList[index];
 
+        // Logika penerjemahan status (tetap sama)
+        String statusText;
+        Color statusColor;
+        IconData statusIcon;
+
+        switch (peminjaman.status) {
+          case '1':
+            statusText = 'Dipinjam';
+            statusColor = Colors.blue;
+            statusIcon = Icons.access_time_filled_rounded;
+            break;
+          case '2':
+            statusText = 'Dikembalikan';
+            statusColor = Colors.green;
+            statusIcon = Icons.check_circle_rounded;
+            break;
+          case '3':
+            statusText = 'Terlambat';
+            statusColor = Colors.red;
+            statusIcon = Icons.warning_rounded;
+            break;
+          default:
+            statusText = 'Tidak Diketahui';
+            statusColor = Colors.grey;
+            statusIcon = Icons.help_outline_rounded;
+        }
+
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           elevation: 2,
@@ -117,42 +144,50 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> {
             borderRadius: BorderRadius.circular(10),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Baris Judul Buku
+                // Info Buku dan Peminjam (tetap sama)
                 Text(
                   peminjaman.book.judul,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   overflow: TextOverflow.ellipsis,
                 ),
-                const Divider(height: 16),
+                const SizedBox(height: 4),
+                Text(
+                  'oleh ${peminjaman.user.name}',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                ),
+                const Divider(height: 20),
 
-                // Informasi Detail Peminjaman
-                _buildInfoRow(
-                  icon: Icons.person_outline,
-                  label: 'Peminjam',
-                  value: peminjaman.user.name,
-                ),
+                // Informasi Detail Tanggal
+                _buildInfoRow(Icons.calendar_today_outlined, 'Tgl. Pinjam', peminjaman.tanggalPinjam),
                 const SizedBox(height: 6),
-                _buildInfoRow(
-                  icon: Icons.calendar_today_outlined,
-                  label: 'Tgl. Pinjam',
-                  value: peminjaman.tanggalPinjam,
-                ),
+                _buildInfoRow(Icons.event_busy_outlined, 'Batas Kembali', peminjaman.tanggalKembali),
                 const SizedBox(height: 6),
-                _buildInfoRow(
-                  icon: Icons.event_available_outlined,
-                  label: 'Batas Kembali',
-                  value: peminjaman.tanggalKembali ?? '-',
-                ),
+
+                // ==================== TAMBAHAN KODE DI SINI ====================
+                // Tampilkan tanggal pengembalian HANYA jika statusnya 'Dikembalikan'
+                if (peminjaman.status == '2')
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6.0),
+                    child: _buildInfoRow(
+                        Icons.event_available_outlined, 'Tgl. Kembali', peminjaman.tanggalPengembalian ?? '-'),
+                  ),
+                // ===============================================================
+
                 const SizedBox(height: 6),
-                // BARIS STATUS DIUBAH DI SINI
-                _buildInfoRow(
-                  icon: Icons.info_outline,
-                  label: 'Status',
-                  value: peminjaman.status,
+
+                // Tampilan Status Chip (tetap sama)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Chip(
+                    avatar: Icon(statusIcon, color: Colors.white, size: 18),
+                    label: Text(statusText, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    backgroundColor: statusColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  ),
                 ),
               ],
             ),
@@ -162,8 +197,8 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> {
     );
   }
 
-  // Widget bantuan untuk membuat baris info yang rapi
-  Widget _buildInfoRow({required IconData icon, required String label, required String value}) {
+  // Widget bantuan (tetap sama)
+  Widget _buildInfoRow(IconData icon, String label, String? value) {
     return Row(
       children: [
         Icon(icon, size: 16, color: Colors.grey.shade600),
@@ -171,7 +206,7 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> {
         Text('$label: ', style: TextStyle(color: Colors.grey.shade700)),
         Expanded(
           child: Text(
-            value,
+            value ?? '-',
             style: const TextStyle(fontWeight: FontWeight.w600),
             overflow: TextOverflow.ellipsis,
           ),

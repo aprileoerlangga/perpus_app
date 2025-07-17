@@ -7,7 +7,7 @@ class Book {
   final String penerbit;
   final String tahun;
   final int stok;
-  final Category category;
+  final Category category; // Properti ini sudah ada, kita hanya perlu memastikan cara membacanya benar
 
   Book({
     required this.id,
@@ -19,19 +19,21 @@ class Book {
     required this.category,
   });
 
+  // --- PERBAIKAN UTAMA DI SINI ---
   factory Book.fromJson(Map<String, dynamic> json) {
     return Book(
       id: json['id'] ?? 0,
       judul: json['judul'] ?? 'Tanpa Judul',
       pengarang: json['pengarang'] ?? 'Tanpa Pengarang',
       penerbit: json['penerbit'] ?? 'Tanpa Penerbit',
-      tahun: json['tahun'] ?? '-',
+      tahun: json['tahun']?.toString() ?? '-', // Ambil tahun sebagai string
       stok: json['stok'] ?? 0,
-      // PERBAIKAN: Buat objek Category dummy karena API tidak menyediakannya di sini
-      category: Category(
-        id: json['category_id'] ?? 0,
-        name: 'Kategori', // Anda bisa beri nama default atau kosong
-      ),
+      // Logika untuk membaca data kategori:
+      // Jika ada objek 'category' di dalam JSON, gunakan itu.
+      // Jika tidak ada (seperti di daftar semua buku), buat kategori dummy dari 'category_id'.
+      category: json['category'] != null
+          ? Category.fromJson(json['category'])
+          : Category(id: json['category_id'] ?? 0, name: 'Memuat...'),
     );
   }
 }

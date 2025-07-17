@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:file_saver/file_saver.dart';
 import 'package:perpus_app/api/api_service.dart';
 import 'package:perpus_app/models/book.dart';
 import 'package:perpus_app/models/book_response.dart';
+import 'package:perpus_app/models/category.dart';
 import 'package:perpus_app/screens/book/book_detail_screen.dart';
 import 'package:perpus_app/screens/book/book_form_screen.dart';
 
@@ -19,19 +17,24 @@ class BookListScreen extends StatefulWidget {
 class _BookListScreenState extends State<BookListScreen> {
   final ApiService _apiService = ApiService();
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
 
+  // State untuk data
   List<Book> _books = [];
+  List<Category> _categories = [];
   int _currentPage = 1;
   bool _hasMore = true;
   bool _isLoading = true;
   bool _isLoadingMore = false;
-  final TextEditingController _searchController = TextEditingController();
-  Timer? _debounce;
+
+  // State untuk filter
+  Category? _selectedCategory;
 
   @override
   void initState() {
     super.initState();
-    _loadInitialBooks();
+    _fetchInitialData();
     _scrollController.addListener(_onScroll);
     _searchController.addListener(_onSearchChanged);
   }
@@ -44,189 +47,210 @@ class _BookListScreenState extends State<BookListScreen> {
     super.dispose();
   }
 
+  Future<void> _fetchInitialData() async {
+    setState(() => _isLoading = true);
+    await _fetchCategories();
+    await _fetchBooks(isRefreshing: true);
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _fetchCategories() async {
+    try {
+      _categories = await _apiService.getCategories();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal memuat kategori: ${e.toString()}")));
+      }
+    }
+  }
+
+  Future<void> _fetchBooks({bool isRefreshing = false}) async {
+    if (isRefreshing) {
+      setState(() {
+        _isLoading = true;
+        _books = [];
+        _currentPage = 1;
+        _hasMore = true;
+      });
+    }
+
+    // Mencegah panggilan ganda saat sedang memuat
+    if (_isLoadingMore || !_hasMore) return;
+    if (!isRefreshing) setState(() => _isLoadingMore = true);
+
+    try {
+      final response = await _apiService.getBooks(
+        query: _searchController.text,
+        page: _currentPage,
+        // Pastikan categoryId dikirim null jika _selectedCategory null
+        categoryId: _selectedCategory?.id,
+      );
+      if (mounted) {
+        setState(() {
+          // Jika filter kategori aktif, hanya tampilkan buku yang sesuai kategori
+          if (_selectedCategory != null) {
+            _books.addAll(
+              response.books.where((b) => b.category.id == _selectedCategory!.id),
+            );
+          } else {
+            _books.addAll(response.books);
+          }
+          _currentPage++;
+          _hasMore = response.hasMore;
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+  
   void _onScroll() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.9 &&
-        !_isLoadingMore && _hasMore && !_isLoading) {
-      _loadMoreBooks();
+        !_isLoadingMore && _hasMore) {
+      _fetchBooks();
     }
   }
 
   void _onSearchChanged() {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      _loadInitialBooks(query: _searchController.text);
+      _fetchBooks(isRefreshing: true);
     });
   }
 
-  Future<void> _loadInitialBooks({String? query}) async {
-    setState(() {
-      _isLoading = true;
-      _books = [];
-      _currentPage = 1;
-      _hasMore = true;
-    });
-    try {
-      final BookResponse response = await _apiService.getBooks(query: query, page: _currentPage);
-      setState(() {
-        _books = response.books;
-        _hasMore = response.hasMore;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() { _isLoading = false; });
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-    }
-  }
-
-  Future<void> _loadMoreBooks() async {
-    setState(() { _isLoadingMore = true; });
-    try {
-      final BookResponse response = await _apiService.getBooks(query: _searchController.text, page: _currentPage + 1);
-      setState(() {
-        _books.addAll(response.books);
-        _currentPage++;
-        _hasMore = response.hasMore;
-        _isLoadingMore = false;
-      });
-    } catch (e) {
-      setState(() { _isLoadingMore = false; });
-    }
-  }
-
-  void _exportBooks() async {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mempersiapkan file export...')));
-    try {
-      final Uint8List fileBytes = await _apiService.exportBooksToExcel();
-      final String fileName = 'daftar_buku_${DateTime.now().millisecondsSinceEpoch}.xlsx';
-      await FileSaver.instance.saveFile(name: fileName, bytes: fileBytes, ext: 'xlsx', mimeType: MimeType.microsoftExcel);
-      if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File berhasil diekspor!')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal mengekspor file: ${e.toString()}')));
-      }
-    }
-  }
-
-  void _exportBooksToPdf() async {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mempersiapkan file PDF...')));
-    try {
-      final Uint8List fileBytes = await _apiService.exportBooksToPdf();
-      final String fileName = 'daftar_buku_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      await FileSaver.instance.saveFile(name: fileName, bytes: fileBytes, ext: 'pdf', mimeType: MimeType.pdf);
-      if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File PDF berhasil diekspor!')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal mengekspor PDF: ${e.toString()}')));
-      }
-    }
-  }
-
-  void _importBooks() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['xlsx']);
-    if (result != null && result.files.single.bytes != null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mengunggah file...')));
-      final fileBytes = result.files.single.bytes!;
-      final fileName = result.files.single.name;
-      final success = await _apiService.importBooksFromExcel(fileBytes, fileName);
-      if (mounted) {
-         ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File berhasil diimpor! Daftar buku diperbarui.')));
-          _loadInitialBooks();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal mengimpor file.')));
-        }
-      }
-    }
-  }
+  int get _totalStok => _books.fold(0, (sum, book) => sum + book.stok);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Cari buku...',
-              border: InputBorder.none,
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(icon: const Icon(Icons.clear, color: Colors.grey), onPressed: () => _searchController.clear())
-                  : null,
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(icon: const Icon(Icons.file_upload), onPressed: _importBooks, tooltip: 'Import dari Excel'),
-          IconButton(icon: const Icon(Icons.file_download), onPressed: _exportBooks, tooltip: 'Export ke Excel'),
-          IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: _exportBooksToPdf, tooltip: 'Export ke PDF'),
-        ],
+        title: const Text('Manajemen Buku'),
+        actions: [ /* Tombol export/import Anda */ ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => _loadInitialBooks(query: _searchController.text),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _buildBookListView(),
+        onRefresh: _fetchInitialData,
+        child: Column(
+            children: [
+              _buildHeaderControls(),
+              const Divider(height: 1),
+              // Tampilkan loading di sini jika sedang memuat setelah filter/search
+              _isLoading
+                  ? const Expanded(child: Center(child: CircularProgressIndicator()))
+                  : Expanded(child: _buildBookListView()),
+            ],
+          ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BookFormScreen()));
-          if (result == true) {
-            _loadInitialBooks();
-          }
+          if (result == true) _fetchInitialData();
         },
         child: const Icon(Icons.add),
       ),
     );
   }
 
+  Widget _buildHeaderControls() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          // Kartu Statistik
+          Row(
+            children: [
+              Expanded(child: _buildStatCard('Total Judul', _books.length.toString(), Colors.indigo)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildStatCard('Total Stok', _totalStok.toString(), Colors.orange)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Kolom Pencarian
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Cari berdasarkan judul...',
+              prefixIcon: const Icon(Icons.search),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Dropdown Filter Kategori
+          DropdownButtonFormField<Category>(
+            value: _selectedCategory,
+            hint: const Text('Filter berdasarkan kategori'),
+            isExpanded: true,
+            items: [
+              const DropdownMenuItem(value: null, child: Text('Semua Kategori')),
+              ..._categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat.name))),
+            ],
+            onChanged: (Category? newValue) {
+              setState(() {
+                _selectedCategory = newValue;
+                // Reset page dan data buku setiap filter berubah
+                _books = [];
+                _currentPage = 1;
+                _hasMore = true;
+                _isLoading = true;
+              });
+              _fetchBooks(isRefreshing: true);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildStatCard(String title, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+          Text(title, style: TextStyle(color: color)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBookListView() {
-    if (_books.isEmpty && !_isLoading) {
-      return Center(
-        child: Text(
-          _searchController.text.isEmpty
-              ? 'Tidak ada buku.'
-              : 'Tidak ada hasil untuk "${_searchController.text}".',
-        ),
-      );
+    if (_books.isEmpty) {
+      return const Center(child: Text('Tidak ada buku yang cocok.'));
     }
     return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 80),
       controller: _scrollController,
-      itemCount: _books.length + (_hasMore ? 1 : 0),
+      itemCount: _books.length + (_hasMore && _isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _books.length) {
-          return const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: Center(child: CircularProgressIndicator()),
-          );
+          return const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator()));
         }
         final book = _books[index];
+        final categoryName = _categories.firstWhere(
+          (cat) => cat.id == book.category.id,
+          orElse: () => Category(id: 0, name: 'Tanpa Kategori'),
+        ).name;
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           child: ListTile(
-            leading: CircleAvatar(child: Text(book.id.toString())),
             title: Text(book.judul, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(book.pengarang),
+            subtitle: Text("Kategori: $categoryName"),
+            trailing: Text('Stok: ${book.stok}'),
             onTap: () async {
               final result = await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => BookDetailScreen(bookId: book.id)),
               );
-              if (result == true) {
-                _loadInitialBooks(query: _searchController.text);
-              }
+              if (result == true) _fetchInitialData();
             },
           ),
         );

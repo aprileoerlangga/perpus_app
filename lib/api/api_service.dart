@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:perpus_app/models/book.dart';
 import 'package:perpus_app/models/book_response.dart';
-import 'package:perpus_app/models/category.dart'; // Pastikan import ini ada
+import 'package:perpus_app/models/category.dart';
 import 'package:perpus_app/models/peminjaman.dart';
 import 'package:perpus_app/models/peminjaman_response.dart';
 import 'package:perpus_app/models/user.dart';
@@ -206,8 +206,12 @@ class ApiService {
     try {
       final response = await _dio.get('/book/$bookId');
       final responseData = response.data;
+      
+      // Pastikan path ke objek buku sudah benar sesuai respons API Anda
       if (responseData is Map<String, dynamic> &&
-          responseData['data']['book'] is Map<String, dynamic>) {
+          responseData['data']?['book'] is Map<String, dynamic>) {
+        
+        // Langsung kirim seluruh objek buku ke Book.fromJson
         final Map<String, dynamic> bookJson = responseData['data']['book'];
         return Book.fromJson(bookJson);
       } else {
@@ -254,7 +258,7 @@ class ApiService {
       if (query != null && query.isNotEmpty) {
         queryParameters['search'] = query;
       }
-      final response = await _dio.get('/category/all/all', queryParameters: queryParameters); 
+      final response = await _dio.get('/category/all/all', queryParameters: queryParameters);
       final responseData = response.data;
       if (responseData is Map<String, dynamic> &&
           responseData['data']['categories'] is List) {
@@ -264,34 +268,46 @@ class ApiService {
         return [];
       }
     } catch (e) {
-      // Jangan gunakan print di production, cukup lempar exception
       throw Exception('Gagal memuat kategori.');
     }
   }
 
-  // --- IMPORT & EXPORT METHODS ---
+  // --- IMPORT & EXPORT METHODS (VERSI FINAL) ---
 
-  Future<Uint8List> exportBooksToExcel() async {
+  Future<String?> exportBooksToExcel() async {
     try {
-      final response = await _dio.get(
-        '/book/export/excel',
-        options: Options(responseType: ResponseType.bytes),
-      );
-      return Uint8List.fromList(response.data);
+      // 1. Minta link, bukan file mentah
+      final response = await _dio.get('/book/export/excel');
+
+      // 2. Cek jika server merespons dengan sukses
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        // 3. Ambil path dari JSON, persis seperti PDF
+        final String? filePath = response.data['path'];
+        
+        if (filePath != null) {
+          // 4. Buat dan kembalikan URL lengkap
+          return 'http://perpus-api.mamorasoft.com/$filePath';
+        }
+      }
+      return null;
     } catch (e) {
-      throw Exception('Gagal mengekspor data Excel.');
+      return null;
     }
   }
 
-  Future<Uint8List> exportBooksToPdf() async {
+  Future<String?> exportBooksToPdf() async {
+    // Fungsi PDF ini sudah benar dari perbaikan kita sebelumnya
     try {
-      final response = await _dio.get(
-        '/book/export/pdf',
-        options: Options(responseType: ResponseType.bytes),
-      );
-      return Uint8List.fromList(response.data);
+      final response = await _dio.get('/book/export/pdf');
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        final String? filePath = response.data['path'];
+        if (filePath != null) {
+          return 'http://perpus-api.mamorasoft.com/$filePath';
+        }
+      }
+      return null;
     } catch (e) {
-      throw Exception('Gagal mengekspor data PDF.');
+      return null;
     }
   }
 
@@ -310,32 +326,30 @@ class ApiService {
     }
   }
 
-  Future<UserResponse> getMembers({int page = 1}) async {
+  Future<UserResponse> getMembers({int page = 1, String? query}) async {
     try {
-      // Menggunakan endpoint yang benar dari file routes/api.php Anda
-      final response = await _dio.get('/user/member/all', queryParameters: {'page': page});
-      final responseData = response.data;
-      
-      // Berdasarkan UserController, path datanya adalah 'data' -> 'users'
-      if (responseData is Map<String, dynamic> &&
-          responseData['data']['users'] is Map<String, dynamic> &&
-          responseData['data']['users']['data'] is List) {
-            
-        final userData = responseData['data']['users'];
-        final List<dynamic> userListJson = userData['data'];
-        
-        final List<User> users = userListJson.map((json) => User.fromJson(json)).toList();
-        
-        return UserResponse(
-          users: users,
-          currentPage: userData['current_page'],
-          lastPage: userData['last_page'],
-        );
-      } else {
-        throw Exception('Struktur data member tidak terduga.');
+      // Siapkan parameter untuk dikirim ke API
+      final Map<String, dynamic> queryParameters = {
+        'page': page,
+      };
+      // Jika ada query pencarian, tambahkan ke parameter
+      if (query != null && query.isNotEmpty) {
+        queryParameters['search'] = query;
       }
+      
+      final response = await _dio.get('/user/member/all', queryParameters: queryParameters);
+      
+      final data = response.data['data'];
+      final List<dynamic> userList = data['users']['data'];
+      final users = userList.map((user) => User.fromJson(user)).toList();
+
+      return UserResponse(
+        users: users,
+        currentPage: data['users']['current_page'],
+        lastPage: data['users']['last_page'],
+      );
     } catch (e) {
-      throw Exception('Gagal memuat data member.');
+      throw Exception('Gagal mengambil data member.');
     }
   }
 

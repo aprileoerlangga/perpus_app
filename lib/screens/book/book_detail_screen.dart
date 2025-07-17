@@ -82,8 +82,6 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       appBar: AppBar(
         title: const Text('Detail Buku'),
         actions: [
-          // --- UBAH LOGIKA DI SINI ---
-          // Tampilkan tombol hanya jika TIDAK diakses dari member
           if (!widget.isFromMember)
             FutureBuilder<Book>(
               future: _bookFuture,
@@ -107,10 +105,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                 return const SizedBox.shrink();
               },
             ),
-          // --- AKHIR PERUBAHAN ---
         ],
       ),
-      // --- TAMBAHKAN FLOATING ACTION BUTTON DI SINI ---
       floatingActionButton: widget.isFromMember
           ? FutureBuilder<Book>(
               future: _bookFuture,
@@ -126,10 +122,10 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     icon: const Icon(Icons.shopping_cart_checkout),
                   );
                 }
-                return const SizedBox.shrink(); // Sembunyikan jika buku belum termuat
+                return const SizedBox.shrink();
               },
             )
-          : null, // Jangan tampilkan tombol jika bukan member
+          : null,
       body: FutureBuilder<Book>(
         future: _bookFuture,
         builder: (context, snapshot) {

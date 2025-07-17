@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:perpus_app/api/api_service.dart';
+import 'package:perpus_app/models/book.dart';
+import 'package:perpus_app/models/book_response.dart'; // <-- Pastikan import ini ada
 import 'package:perpus_app/models/category.dart';
 import 'package:perpus_app/screens/category/category_form_screen.dart';
 
@@ -14,6 +16,7 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
   final ApiService _apiService = ApiService();
 
   List<Category> _allCategories = [];
+  List<Book> _allBooks = [];
   List<Category> _pagedCategories = [];
 
   bool _isLoading = true;
@@ -26,7 +29,7 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAllCategories();
+    _loadAllData();
     _searchController.addListener(_filterAndPaginate);
   }
 
@@ -35,21 +38,33 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
     _searchController.dispose();
     super.dispose();
   }
-
-  Future<void> _loadAllCategories() async {
+  
+  Future<void> _loadAllData() async {
     setState(() { _isLoading = true; });
     try {
-      final categories = await _apiService.getCategories();
+      final responses = await Future.wait([
+        _apiService.getCategories(),
+        // --- PERBAIKAN 1: HAPUS PARAMETER 'limit' ---
+        _apiService.getBooks(page: 1), 
+      ]);
+
+      final List<Category> categories = responses[0] as List<Category>;
+      // --- PERBAIKAN 2: TAMBAHKAN 'as BookResponse' ---
+      final BookResponse bookResponse = responses[1] as BookResponse;
+
       setState(() {
         _allCategories = categories;
+        _allBooks = bookResponse.books;
         _filterAndPaginate();
         _isLoading = false;
       });
     } catch (e) {
       setState(() { _isLoading = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memuat kategori: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat data: ${e.toString()}')),
+        );
+      }
     }
   }
 
@@ -97,11 +112,10 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
       MaterialPageRoute(builder: (_) => CategoryFormScreen(category: category)),
     );
     if (result == true) {
-      _loadAllCategories();
+      _loadAllData();
     }
   }
 
-  // Ganti fungsi _deleteCategory dengan yang ini
   void _deleteCategory(int id) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -119,7 +133,7 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kategori berhasil dihapus')));
-          _loadAllCategories();
+          _loadAllData();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal menghapus kategori')));
         }
@@ -160,26 +174,40 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
 
   Widget _buildCategoryListView() {
     if (_pagedCategories.isEmpty && !_isLoading) {
-      return const Center(child: Text('Tidak ada kategori.'));
+      return const Center(child: Text('Tidak ada kategori yang cocok.'));
     }
-    return ListView.builder(
-      itemCount: _pagedCategories.length,
-      itemBuilder: (context, index) {
-        final category = _pagedCategories[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: ListTile(
-            title: Text(category.name),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(icon: const Icon(Icons.edit), onPressed: () => _navigateToForm(category: category)),
-                IconButton(icon: const Icon(Icons.delete), onPressed: () => _deleteCategory(category.id)),
-              ],
+    return RefreshIndicator(
+      onRefresh: _loadAllData,
+      child: ListView.builder(
+        itemCount: _pagedCategories.length,
+        itemBuilder: (context, index) {
+          final category = _pagedCategories[index];
+          
+          // --- LOGIKA MENGHITUNG BUKU UNTUK SETIAP KATEGORI ---
+          final int bookCount = _allBooks.where((book) => book.category.id == category.id).length;
+
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              leading: CircleAvatar(
+                backgroundColor: Colors.indigo.shade100,
+                child: const Icon(Icons.category, color: Colors.indigo),
+              ),
+              title: Text(category.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              // --- TAMPILKAN JUMLAH BUKU ---
+              subtitle: Text('$bookCount Buku', style: TextStyle(color: Colors.grey.shade600)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _navigateToForm(category: category), tooltip: 'Edit'),
+                  IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _deleteCategory(category.id), tooltip: 'Hapus'),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
