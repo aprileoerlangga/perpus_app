@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:perpus_app/api/api_service.dart';
 import 'package:perpus_app/models/book.dart';
@@ -69,6 +70,7 @@ class _BookFormScreenState extends State<BookFormScreen> {
 
   Future<void> _pickImage() async {
     try {
+      print('🖼️ Starting image picker...');
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 800,
@@ -77,20 +79,54 @@ class _BookFormScreenState extends State<BookFormScreen> {
       );
       
       if (image != null) {
+        print('✅ Image picked: ${image.path}');
+        print('📱 Platform: ${kIsWeb ? 'Web' : 'Mobile'}');
+        print('📏 Image size: ${await image.length()} bytes');
+        print('📝 Image name: ${image.name}');
+        
         setState(() {
           if (kIsWeb) {
             _selectedImageWeb = image;
+            print('🌐 Web image set: ${_selectedImageWeb?.path}');
           } else {
             _selectedImage = File(image.path);
+            print('📱 Mobile image set: ${_selectedImage?.path}');
           }
           _hasChanges = true;
         });
+        
+        // Show success message to user
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text('Gambar berhasil dipilih!'),
+                ],
+              ),
+              backgroundColor: Colors.green[600],
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        print('❌ No image selected');
       }
     } catch (e) {
+      print('❌ Error picking image: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error memilih gambar: $e'),
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Error memilih gambar: $e')),
+              ],
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -179,17 +215,23 @@ class _BookFormScreenState extends State<BookFormScreen> {
       try {
         // Siapkan data untuk dikirim ke API
         final bookData = _prepareBookData();
+        print('📝 Submitting form with data: $bookData');
+        print('📷 Selected image (mobile): ${_selectedImage?.path}');
+        print('🌐 Selected image (web): ${_selectedImageWeb?.path}');
         
         bool success;
         if (widget.book == null) {
           // Mode Buat Baru - kirim baik File maupun XFile ke API
+          print('➕ Creating new book...');
           success = await _apiService.addBook(bookData, _selectedImage, _selectedImageWeb);
         } else {
           // Mode Edit - kirim baik File maupun XFile ke API
+          print('✏️ Updating book ID: ${widget.book!.id}');
           success = await _apiService.updateBook(widget.book!.id, bookData, _selectedImage, _selectedImageWeb);
         }
 
         setState(() => _isLoading = false);
+        print('📋 Form submission result: $success');
 
         if (mounted) {
           if (success) {
@@ -555,11 +597,27 @@ class _BookFormScreenState extends State<BookFormScreen> {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                _selectedImageWeb!.path,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => 
-                                  Center(child: Icon(Icons.image_not_supported, color: Colors.grey[400])),
+                              child: FutureBuilder<Uint8List>(
+                                future: _selectedImageWeb!.readAsBytes(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasData) {
+                                    return Image.memory(
+                                      snapshot.data!,
+                                      fit: BoxFit.cover,
+                                    );
+                                  } else if (snapshot.hasError) {
+                                    return Center(
+                                      child: Icon(
+                                        Icons.image_not_supported, 
+                                        color: Colors.grey[400]
+                                      )
+                                    );
+                                  } else {
+                                    return const Center(
+                                      child: CircularProgressIndicator()
+                                    );
+                                  }
+                                },
                               ),
                             ),
                           )

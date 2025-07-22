@@ -504,6 +504,7 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> with Ticker
         ],
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
@@ -511,23 +512,15 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> with Ticker
               color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 28), // Perbesar icon jika perlu
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             count.toString(),
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 28, // Perbesar angka
               fontWeight: FontWeight.bold,
               color: color,
-            ),
-          ),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              color: color,
-              fontWeight: FontWeight.w600,
             ),
           ),
         ],

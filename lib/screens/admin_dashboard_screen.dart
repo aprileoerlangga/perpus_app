@@ -571,29 +571,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
               ),
             ),
             const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.circle, color: Colors.green, size: 8),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Real-time',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // Container(
+            //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            //   decoration: BoxDecoration(
+            //     color: Colors.green.withValues(alpha: 0.1),
+            //     borderRadius: BorderRadius.circular(20),
+            //     border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+            //   ),
+            //   child: Row(
+            //     mainAxisSize: MainAxisSize.min,
+            //     children: [
+            //       Icon(Icons.circle, color: Colors.green, size: 8),
+            //       const SizedBox(width: 6),
+            //       Text(
+            //         'Real-time',
+            //         style: TextStyle(
+            //           color: Colors.green,
+            //           fontSize: 12,
+            //           fontWeight: FontWeight.w600,
+            //         ),
+            //       ),
+            //     ],
+            //   ),
+            // ),
           ],
         ),
         const SizedBox(height: 20),

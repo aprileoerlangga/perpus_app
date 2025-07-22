@@ -741,19 +741,24 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> with Ticker
                   colors: [Colors.blue.shade100, Colors.purple.shade100],
                 ),
               ),
-              child: (book.path?.isNotEmpty ?? false)
+              child: (book.coverUrl != null && book.coverUrl!.isNotEmpty)
                   ? ClipRRect(
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                       child: Image.network(
-                        'http://localhost:8000/storage/${book.path}',
+                        book.coverUrl!,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
+                          print('❌ Error loading image for ${book.judul}: ${book.coverUrl}');
+                          print('❌ Original path: ${book.path}');
                           return _buildBookPlaceholder(book);
                         },
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                          return Container(
+                            color: Colors.grey[200],
+                            child: const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
                           );
                         },
                       ),
@@ -888,17 +893,28 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> with Ticker
                 colors: [Colors.blue.shade100, Colors.purple.shade100],
               ),
             ),
-            child: (book.path?.isNotEmpty ?? false)
+            child: (book.coverUrl != null && book.coverUrl!.isNotEmpty)
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: Image.network(
-                      'http://localhost:8000/storage/${book.path}',
+                      book.coverUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
+                        print('❌ Error loading image for ${book.judul}: ${book.coverUrl}');
+                        print('❌ Original path: ${book.path}');
                         return Icon(
                           Icons.auto_stories,
                           color: Colors.grey[400],
                           size: 30,
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 1),
+                          ),
                         );
                       },
                     ),

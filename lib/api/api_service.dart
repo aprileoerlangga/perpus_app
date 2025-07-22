@@ -226,7 +226,7 @@ class ApiService {
         if (imageFile != null) {
           String fileName = imageFile.path.split('/').last;
           formData.files.add(MapEntry(
-            'image',
+            'path',
             await MultipartFile.fromFile(imageFile.path, filename: fileName),
           ));
           print('📤 Native image added to form: $fileName');
@@ -245,7 +245,7 @@ class ApiService {
           }
           
           formData.files.add(MapEntry(
-            'image',
+            'path',
             MultipartFile.fromBytes(
               bytes, 
               filename: fileName,
@@ -313,7 +313,7 @@ class ApiService {
         if (imageFile != null) {
           String fileName = imageFile.path.split('/').last;
           formData.files.add(MapEntry(
-            'image',
+            'path',
             await MultipartFile.fromFile(imageFile.path, filename: fileName),
           ));
           print('📤 Native image added to form: $fileName');
@@ -332,7 +332,7 @@ class ApiService {
           }
           
           formData.files.add(MapEntry(
-            'image',
+            'path',
             MultipartFile.fromBytes(
               bytes, 
               filename: fileName,
