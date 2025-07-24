@@ -86,35 +86,31 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
 
   Future<void> _fetchTotalStatistics() async {
     try {
-      // Untuk mendapatkan semua data, kita perlu fetch semua halaman
-      int allBooksCount = 0;
-      int allStock = 0;
-      bool hasMore = true;
-      int currentPage = 1;
+      // Gunakan endpoint dashboard untuk mendapatkan statistik yang akurat
+      final dashboardData = await _apiService.getDashboardData();
       
-      while (hasMore) {
-        final pageResponse = await _apiService.getBooks(page: currentPage);
-        allBooksCount += pageResponse.books.length;
-        allStock += pageResponse.books.fold(0, (sum, book) => sum + book.stok);
-        hasMore = pageResponse.hasMore;
-        currentPage++;
+      if (mounted) {
+        setState(() {
+          _totalBooks = dashboardData['total_books'] ?? 0;
+          _totalStock = dashboardData['total_stock'] ?? 0;
+          _totalCategories = dashboardData['total_categories'] ?? _categories.length;
+        });
       }
-      
-      setState(() {
-        _totalBooks = allBooksCount;
-        _totalStock = allStock;
-        _totalCategories = _categories.length;
-      });
     } catch (e) {
+      print('Dashboard API failed, using fallback: $e');
       // Fallback to current loaded data if API fails
-      _calculateStatistics();
+      if (mounted) {
+        _calculateStatistics();
+      }
     }
   }
 
   void _calculateStatistics() {
-    _totalBooks = _books.length;
-    _totalStock = _books.fold(0, (sum, book) => sum + book.stok);
-    _totalCategories = _categories.length;
+    // Hanya digunakan sebagai fallback, sebaiknya tetap menggunakan dashboard API
+    // Jangan ubah total dari dashboard API yang sudah akurat
+    if (_totalBooks == 0) _totalBooks = _books.length;
+    if (_totalStock == 0) _totalStock = _books.fold(0, (sum, book) => sum + book.stok);
+    if (_totalCategories == 0) _totalCategories = _categories.length;
   }
 
   void _sortBooks() {
@@ -298,13 +294,13 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            Text(
-                              'Kelola koleksi perpustakaan Anda',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                            ),
+                            // Text(
+                            //   'Kelola koleksi perpustakaan Anda',
+                            //   style: TextStyle(
+                            //     color: Colors.white70,
+                            //     fontSize: 14,
+                            //   ),
+                            // ),
                           ],
                         ),
                       ),
@@ -647,7 +643,7 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Sedang memproses file ${type.toUpperCase()}...',
+                  'File akan didownload melalui browser...',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey[600],
@@ -660,30 +656,19 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
         ),
       );
 
-      // Get all books for export (not just loaded ones)
-      List<Book> allBooks = [];
-      bool hasMore = true;
-      int currentPage = 1;
-      
-      while (hasMore) {
-        final response = await _apiService.getBooks(page: currentPage);
-        allBooks.addAll(response.books);
-        hasMore = response.hasMore;
-        currentPage++;
-      }
-
+      // Use API-based export with browser download
       bool success = false;
       
       if (type == 'excel') {
-        success = await _importExportService.exportBooksToExcel(allBooks);
+        success = await _importExportService.exportBooksToExcelViaAPI(context: context);
       } else if (type == 'pdf') {
-        success = await _importExportService.exportBooksToPDF(allBooks);
+        success = await _importExportService.exportBooksToPDFViaAPI(context: context);
       }
 
       // Close loading dialog
       Navigator.pop(context);
 
-      // Show modern result
+      // Show modern result - Updated message for browser download
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -698,7 +683,7 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
-                      type == 'excel' ? Icons.table_chart_rounded : Icons.picture_as_pdf_rounded,
+                      Icons.cloud_download_rounded,
                       color: Colors.white,
                       size: 20,
                     ),
@@ -710,14 +695,14 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Export Berhasil! 🎉',
+                          'Download Dimulai! 🚀',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
                         ),
                         Text(
-                          'File ${type.toUpperCase()} telah diunduh',
+                          'File ${type.toUpperCase()} sedang diunduh melalui browser',
                           style: TextStyle(fontSize: 12),
                         ),
                       ],
@@ -858,7 +843,7 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Sedang memproses template Excel...',
+                    'Menyiapkan template Excel...',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[600],
@@ -871,7 +856,21 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
           ),
         );
 
-        bool success = await _importExportService.downloadImportTemplate();
+        // Try API first, then fallback to local template generation
+        bool success = false;
+        
+        // First try API-based template download
+        try {
+          success = await _importExportService.downloadImportTemplateViaAPI(context: context);
+        } catch (e) {
+          print('API template download failed, using local fallback: $e');
+          success = false;
+        }
+        
+        // If API fails, use local template generation
+        if (!success) {
+          success = await _importExportService.downloadImportTemplate(context: context);
+        }
         Navigator.pop(context); // Close loading dialog
 
         if (success) {
@@ -907,7 +906,7 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                             ),
                           ),
                           Text(
-                            'Template Excel telah diunduh',
+                            'Template Excel berhasil didownload',
                             style: TextStyle(fontSize: 12),
                           ),
                         ],
@@ -1344,33 +1343,93 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
   Widget _buildStatsCards() {
     return Container(
       padding: const EdgeInsets.all(20),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _buildStatCard(
-              'Total Buku',
-              '$_totalBooks',
-              Icons.menu_book_rounded,
-              Colors.blue,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildStatCard(
-              'Total Stok',
-              '$_totalStock',
-              Icons.inventory_rounded,
-              Colors.green,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildStatCard(
-              'Kategori',
-              '$_totalCategories',
-              Icons.category_rounded,
-              Colors.orange,
-            ),
+          // Indikator data real-time dengan tombol refresh
+          // Row(
+          //   children: [
+          //     Expanded(
+          //       child: Container(
+          //         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          //         decoration: BoxDecoration(
+          //           color: Colors.green.shade100,
+          //           borderRadius: BorderRadius.circular(12),
+          //           border: Border.all(color: Colors.green.shade300),
+          //         ),
+          //         child: Row(
+          //           mainAxisSize: MainAxisSize.min,
+          //           children: [
+          //             Icon(Icons.cloud_done, color: Colors.green.shade700, size: 16),
+          //             const SizedBox(width: 6),
+          //             Text(
+          //               'Data Real-time dari Dashboard API',
+          //               style: TextStyle(
+          //                 color: Colors.green.shade700,
+          //                 fontSize: 12,
+          //                 fontWeight: FontWeight.w600,
+          //               ),
+          //             ),
+          //           ],
+          //         ),
+          //       ),
+          //     ),
+          //     const SizedBox(width: 8),
+          //     Container(
+          //       decoration: BoxDecoration(
+          //         color: Colors.indigo.shade100,
+          //         borderRadius: BorderRadius.circular(8),
+          //       ),
+          //       child: IconButton(
+          //         onPressed: () async {
+          //           await _fetchTotalStatistics();
+          //           if (mounted) {
+          //             ScaffoldMessenger.of(context).showSnackBar(
+          //               const SnackBar(
+          //                 content: Text('Statistik diperbarui'),
+          //                 duration: Duration(seconds: 1),
+          //               ),
+          //             );
+          //           }
+          //         },
+          //         icon: Icon(Icons.refresh, color: Colors.indigo.shade700, size: 16),
+          //         tooltip: 'Refresh Statistik',
+          //         padding: const EdgeInsets.all(8),
+          //       ),
+          //     ),
+          //   ],
+          // ),
+          // const SizedBox(height: 16),
+          
+          // Kartu statistik
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Total Buku',
+                  '$_totalBooks',
+                  Icons.menu_book_rounded,
+                  Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildStatCard(
+                  'Total Stok',
+                  '$_totalStock',
+                  Icons.inventory_rounded,
+                  Colors.green,
+                ),
+              ),
+              // const SizedBox(width: 16),
+              // Expanded(
+              //   child: _buildStatCard(
+              //     'Kategori',
+              //     '$_totalCategories',
+              //     Icons.category_rounded,
+              //     Colors.orange,
+              //   ),
+              // ),
+            ],
           ),
         ],
       ),
@@ -1425,7 +1484,7 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
 
   Widget _buildSearchAndFilter() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         children: [
           // Search Bar
@@ -1445,14 +1504,14 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
               controller: _searchController,
               style: const TextStyle(
                 color: Colors.black87,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
               decoration: InputDecoration(
-                hintText: 'Cari buku berdasarkan judul, pengarang, atau penerbit...',
+                hintText: 'Cari buku...',
                 hintStyle: TextStyle(
                   color: Colors.grey[500],
-                  fontSize: 15,
+                  fontSize: 13,
                   fontWeight: FontWeight.w400,
                 ),
                 prefixIcon: Container(
@@ -1466,12 +1525,12 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                   child: const Icon(
                     Icons.search,
                     color: Colors.white,
-                    size: 20,
+                    size: 18,
                   ),
                 ),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear, color: Colors.grey[600]),
+                        icon: Icon(Icons.clear, color: Colors.grey[600], size: 18),
                         onPressed: () {
                           _searchController.clear();
                         },
@@ -1479,17 +1538,17 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                     : null,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+                  horizontal: 16,
+                  vertical: 12,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           
-          // Compact Filter Row - All in One
+          // Compact Filter Section
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
@@ -1503,27 +1562,29 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
             ),
             child: Column(
               children: [
-                // Row 1: Category and View Mode
+                // Header with View Mode
                 Row(
                   children: [
-                    Icon(Icons.filter_alt_outlined, color: Colors.grey[600], size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Filter & Tampilan:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
+                    Icon(Icons.filter_alt_outlined, color: Colors.grey[600], size: 18),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Filter',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    // View Mode Toggle
+                    // View Mode Toggle - Compact
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           _buildViewModeButton(Icons.grid_view_rounded, 'grid'),
                           _buildViewModeButton(Icons.view_list_rounded, 'list'),
@@ -1532,298 +1593,189 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                // Row 2: Category and Sort in one row
-                Row(
+                const SizedBox(height: 12),
+                
+                // Filters in Responsive Layout
+                Column(
                   children: [
-                    // Category Filter - Modern Design
-                    Expanded(
-                      flex: 3,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Colors.white, Colors.blue.shade50],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue.shade200, width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                    // Row 1: Category Filter
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200, width: 1),
                             ),
-                          ],
-                        ),
-                        child: Theme(
-                          data: Theme.of(context).copyWith(
-                            canvasColor: Colors.white,
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<Category?>(
-                              value: _selectedCategory,
-                              hint: Row(
-                                children: [
-                                  Icon(
-                                    Icons.category_outlined,
-                                    size: 18,
-                                    color: Colors.blue.shade600,
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<Category?>(
+                                value: _selectedCategory,
+                                hint: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.category_outlined,
+                                      size: 16,
+                                      color: Colors.blue.shade600,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        'Kategori',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.blue.shade700,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                isExpanded: true,
+                                icon: Icon(
+                                  Icons.keyboard_arrow_down,
+                                  size: 16,
+                                  color: Colors.blue.shade600,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[800],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                dropdownColor: Colors.white,
+                                elevation: 8,
+                                borderRadius: BorderRadius.circular(8),
+                                items: [
+                                  DropdownMenuItem<Category?>(
+                                    value: null,
+                                    child: Text(
+                                      'Semua Kategori',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey[800],
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Semua Kategori',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.blue.shade700,
-                                      fontWeight: FontWeight.w500,
+                                  ..._categories.map((cat) => DropdownMenuItem(
+                                    value: cat,
+                                    child: Text(
+                                      cat.name,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey[800],
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  )),
+                                ],
+                                onChanged: (Category? newValue) {
+                                  setState(() {
+                                    _selectedCategory = newValue;
+                                    _fetchBooks(isRefreshing: true);
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Row 2: Sort By and Controls
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange.shade200, width: 1),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _sortBy,
+                                isExpanded: true,
+                                icon: Icon(
+                                  Icons.keyboard_arrow_down,
+                                  size: 16,
+                                  color: Colors.orange.shade600,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[800],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                dropdownColor: Colors.white,
+                                elevation: 8,
+                                borderRadius: BorderRadius.circular(8),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: 'judul',
+                                    child: Text(
+                                      'Judul',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'pengarang',
+                                    child: Text(
+                                      'Pengarang',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'tahun',
+                                    child: Text(
+                                      'Tahun',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'stok',
+                                    child: Text(
+                                      'Stok',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey[800],
+                                      ),
                                     ),
                                   ),
                                 ],
+                                onChanged: (String? newValue) {
+                                  if (newValue != null) {
+                                    setState(() {
+                                      _sortBy = newValue;
+                                      _sortBooks();
+                                    });
+                                  }
+                                },
                               ),
-                              isExpanded: true,
-                              icon: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.shade100,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  size: 18,
-                                  color: Colors.blue.shade600,
-                                ),
-                              ),
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[800],
-                                fontWeight: FontWeight.w500,
-                              ),
-                              dropdownColor: Colors.white,
-                              elevation: 8,
-                              borderRadius: BorderRadius.circular(12),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              items: [
-                                DropdownMenuItem<Category?>(
-                                  value: null,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.all_inclusive,
-                                          size: 18,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            'Semua Kategori',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                              color: Colors.grey[800],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                ..._categories.map((cat) => DropdownMenuItem(
-                                  value: cat,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 20,
-                                          height: 20,
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                Colors.blue.shade300,
-                                                Colors.purple.shade300,
-                                              ],
-                                            ),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: const Icon(
-                                            Icons.bookmark,
-                                            size: 12,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            cat.name,
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                              color: Colors.grey[800],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )),
-                              ],
-                              onChanged: (Category? newValue) {
-                                setState(() {
-                                  _selectedCategory = newValue;
-                                  _fetchBooks(isRefreshing: true);
-                                });
-                              },
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Sort By - Modern Design
-                    Expanded(
-                      flex: 3,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Colors.white, Colors.orange.shade50],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.shade200, width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.orange.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Theme(
-                          data: Theme.of(context).copyWith(
-                            canvasColor: Colors.white,
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _sortBy,
-                              isExpanded: true,
-                              icon: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.shade100,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  size: 18,
-                                  color: Colors.orange.shade600,
-                                ),
-                              ),
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[800],
-                                fontWeight: FontWeight.w500,
-                              ),
-                              dropdownColor: Colors.white,
-                              elevation: 8,
-                              borderRadius: BorderRadius.circular(12),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              items: [
-                                DropdownMenuItem(
-                                  value: 'judul',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.title, size: 18, color: Colors.orange.shade600),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Judul',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.grey[800],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'pengarang',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.person_outline, size: 18, color: Colors.orange.shade600),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Pengarang',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.grey[800],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'tahun',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.calendar_today_outlined, size: 18, color: Colors.orange.shade600),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Tahun',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.grey[800],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'stok',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.inventory_2_outlined, size: 18, color: Colors.orange.shade600),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Stok',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.grey[800],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                              onChanged: (String? newValue) {
-                                if (newValue != null) {
-                                  setState(() {
-                                    _sortBy = newValue;
-                                    _sortBooks();
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Sort Direction + Refresh
-                    Row(
-                      children: [
+                        const SizedBox(width: 8),
+                        // Sort Direction Button
                         Container(
                           decoration: BoxDecoration(
                             color: _sortAscending ? Colors.indigo[50] : Colors.orange[50],
@@ -1836,7 +1788,7 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                             icon: Icon(
                               _sortAscending ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                               color: _sortAscending ? Colors.indigo[600] : Colors.orange[600],
-                              size: 20,
+                              size: 16,
                             ),
                             onPressed: () {
                               setState(() {
@@ -1844,23 +1796,24 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                                 _sortBooks();
                               });
                             },
-                            tooltip: _sortAscending ? 'A-Z / 1-9' : 'Z-A / 9-1',
-                            padding: const EdgeInsets.all(8),
-                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                            tooltip: _sortAscending ? 'A-Z' : 'Z-A',
+                            padding: const EdgeInsets.all(6),
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
+                        // Refresh Button
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.indigo,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: IconButton(
-                            icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
+                            icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
                             onPressed: () => _fetchInitialData(),
-                            tooltip: 'Refresh Data',
-                            padding: const EdgeInsets.all(8),
-                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                            tooltip: 'Refresh',
+                            padding: const EdgeInsets.all(6),
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                           ),
                         ),
                       ],
@@ -1883,17 +1836,17 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
           _viewMode = mode;
         });
       },
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(4),
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: isSelected ? Colors.indigo : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(4),
         ),
         child: Icon(
           icon,
           color: isSelected ? Colors.white : Colors.grey[600],
-          size: 18,
+          size: 16,
         ),
       ),
     );
@@ -1933,48 +1886,48 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
               children: [
                 Icon(
                   Icons.library_books_outlined,
-                  size: 50, // Kurangi ukuran icon
+                  size: 50,
                   color: Colors.grey[300],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                'Tidak ada buku ditemukan',
-                style: TextStyle(
-                  fontSize: 12, // Kurangi font size
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
+                  'Tidak ada buku ditemukan',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Coba ubah filter atau tambah buku baru',
-                style: TextStyle(
-                  fontSize: 10, // Kurangi font size
-                  color: Colors.grey[500],
+                const SizedBox(height: 4),
+                Text(
+                  'Coba ubah filter atau tambah buku baru',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[500],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
     }
 
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       sliver: _viewMode == 'grid' ? _buildGridView() : _buildListView(),
     );
   }
 
   Widget _buildGridView() {
     return SliverPadding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(10),
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.75,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+          childAspectRatio: 0.65, // Lebih tinggi lagi untuk menghindari overflow
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
@@ -2010,7 +1963,7 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                 child: Opacity(
                   opacity: animation.clamp(0.0, 1.0),
                   child: Container(
-                    margin: const EdgeInsets.only(bottom: 16),
+                    margin: const EdgeInsets.only(bottom: 10),
                     child: _buildBookListTile(_books[index]),
                   ),
                 ),
@@ -2040,7 +1993,7 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
         onTap: () => _showBookDetail(book),
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               // Book Cover
@@ -2182,17 +2135,17 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
                 children: [
                   IconButton(
                     onPressed: () => _showEditDialog(book),
-                    icon: const Icon(Icons.edit, size: 20),
+                    icon: const Icon(Icons.edit, size: 18),
                     color: Colors.blue,
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                   ),
                   IconButton(
                     onPressed: () => _showDeleteConfirmation(book),
-                    icon: const Icon(Icons.delete, size: 20),
+                    icon: const Icon(Icons.delete, size: 18),
                     color: Colors.red,
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                   ),
                 ],
               ),
@@ -2204,225 +2157,132 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
   }
 
   Widget _buildModernBookCard(Book book) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [
-            Colors.white,
-            Colors.grey.shade50,
+    return InkWell(
+      onTap: () => _showBookDetail(book),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
           ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: () => _showBookDetail(book),
-        borderRadius: BorderRadius.circular(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Book Cover Section
+            // Book Cover Section - Lebih tinggi
             Expanded(
-              flex: 3,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.indigo.shade400,
-                      Colors.purple.shade400,
-                      Colors.pink.shade300,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    // Book Image or Icon
-                    if (book.coverUrl != null && book.coverUrl!.isNotEmpty)
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(20),
-                        ),
-                        child: Image.network(
-                          book.coverUrl!,
-                          width: double.infinity,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            decoration: BoxDecoration(
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(20),
-                              ),
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.indigo.shade400,
-                                  Colors.purple.shade400,
-                                  Colors.pink.shade300,
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
+              flex: 4,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: book.coverUrl != null && book.coverUrl!.isNotEmpty
+                        ? Image.network(
+                            book.coverUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              color: Colors.grey[200],
+                              child: Icon(Icons.book_outlined, color: Colors.grey[400], size: 32),
                             ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.auto_stories_rounded,
-                                size: 40,
-                                color: Colors.white70,
-                              ),
-                            ),
+                          )
+                        : Container(
+                            color: Colors.grey[200],
+                            child: Icon(Icons.book_outlined, color: Colors.grey[400], size: 32),
                           ),
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              decoration: BoxDecoration(
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(20),
-                                ),
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.indigo.shade400,
-                                    Colors.purple.shade400,
-                                    Colors.pink.shade300,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      )
-                    else
-                      // Default book icon
-                      const Center(
-                        child: Icon(
-                          Icons.auto_stories_rounded,
-                          size: 40,
-                          color: Colors.white70,
-                        ),
+                  ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: book.stok > 0 ? Colors.green.shade400 : Colors.red.shade400,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white.withOpacity(0.5)),
                       ),
-                    // Stock Badge
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: book.stok > 0 
-                            ? Colors.green.shade400
-                            : Colors.red.shade400,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          book.stok.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      child: Text(
+                        'Stok: ${book.stok}',
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            // Book Info Section
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      book.judul,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      book.pengarang,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
-                    // Action Buttons Row
-                    Row(
+            // Book Info Section - Fixed height untuk mencegah overflow
+            Container(
+              height: 70, // Kurangi lagi tinggi untuk menghindari overflow
+              padding: const EdgeInsets.all(5),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Text section dengan Expanded untuk anti-overflow
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Container(
-                            height: 28,
-                            child: ElevatedButton(
-                              onPressed: () => _showEditDialog(book),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.indigo.shade100,
-                                foregroundColor: Colors.indigo.shade700,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: const Icon(Icons.edit, size: 16),
-                            ),
-                          ),
+                        Text(
+                          book.judul,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Container(
-                            height: 28,
-                            child: ElevatedButton(
-                              onPressed: () => _showDeleteConfirmation(book),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.shade100,
-                                foregroundColor: Colors.red.shade700,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: const Icon(Icons.delete, size: 16),
-                            ),
-                          ),
+                        const SizedBox(height: 1),
+                        Text(
+                          book.pengarang,
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 8),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  // Action buttons row dengan ukuran tetap
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 20,
+                        child: ElevatedButton(
+                          onPressed: () => _showEditDialog(book),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo.shade50,
+                            foregroundColor: Colors.indigo.shade700,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: const Icon(Icons.edit, size: 9),
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      SizedBox(
+                        width: 24,
+                        height: 20,
+                        child: ElevatedButton(
+                          onPressed: () => _showDeleteConfirmation(book),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade50,
+                            foregroundColor: Colors.red.shade700,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: const Icon(Icons.delete, size: 9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
@@ -2446,8 +2306,32 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Hapus Buku'),
-        content: Text('Yakin ingin menghapus buku "${book.judul}"?'),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.warning_amber_rounded, color: Colors.red[600], size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Text('Hapus Buku'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Apakah Anda yakin ingin menghapus buku "${book.judul}"?'),
+            const SizedBox(height: 8),
+            const Text(
+              'Tindakan ini tidak dapat dibatalkan.',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -2463,18 +2347,103 @@ class _BookListScreenState extends State<BookListScreen> with TickerProviderStat
     );
 
     if (confirmed == true) {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(
+                  'Menghapus buku...',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
       try {
-        await _apiService.deleteBook(book.id);
-        _fetchInitialData();
+        final success = await _apiService.deleteBook(book.id);
+        
+        // Close loading dialog
+        if (mounted) Navigator.pop(context);
+        
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Buku berhasil dihapus')),
-          );
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.white),
+                    const SizedBox(width: 12),
+                    Text('Buku "${book.judul}" berhasil dihapus'),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.all(16),
+              ),
+            );
+            // Refresh semua data termasuk statistik dari dashboard API
+            _fetchInitialData();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.error, color: Colors.white),
+                    const SizedBox(width: 12),
+                    const Text('Gagal menghapus buku'),
+                  ],
+                ),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.all(16),
+              ),
+            );
+          }
         }
       } catch (e) {
+        // Close loading dialog
+        if (mounted) Navigator.pop(context);
+        
+        // Show error message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal menghapus buku: ${e.toString()}')),
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      e.toString().replaceFirst('Exception: ', ''),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 4),
+            ),
           );
         }
       }

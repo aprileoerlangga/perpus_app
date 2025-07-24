@@ -2,19 +2,158 @@ import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:perpus_app/models/book.dart';
 import 'package:perpus_app/models/category.dart';
+import 'package:perpus_app/services/simple_file_service.dart';
+import '../utils/download_helper.dart';
+import '../api/api_service.dart';
 
 class ImportExportService {
   static final ImportExportService _instance = ImportExportService._();
   factory ImportExportService() => _instance;
   ImportExportService._();
 
+  final ApiService _apiService = ApiService();
+
+  // Method baru menggunakan API backend seperti code teman Anda
+  Future<bool> exportBooksToExcelViaAPI({BuildContext? context}) async {
+    try {
+      print('🚀 Starting Excel export via API...');
+      
+      // Get download URL from API
+      final downloadUrl = await _apiService.exportBooksToExcel();
+      
+      if (downloadUrl != null && context != null) {
+        print('📥 Got download URL: $downloadUrl');
+        
+        // Langsung buka URL di browser untuk download
+        await DownloadHelper.downloadFile(
+          url: downloadUrl,
+          fileName: 'buku_export_${DateFormat('ddMMyyyy_HHmmss').format(DateTime.now())}.xlsx',
+          context: context,
+        );
+        
+        return true;
+      } else {
+        print('❌ No download URL received');
+        if (context != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal mendapatkan URL download dari server'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+    } catch (e) {
+      print('❌ API Excel export error: $e');
+      if (context != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error export Excel: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> exportBooksToPDFViaAPI({BuildContext? context}) async {
+    try {
+      print('🚀 Starting PDF export via API...');
+      
+      // Get download URL from API
+      final downloadUrl = await _apiService.exportBooksToPdf();
+      
+      if (downloadUrl != null && context != null) {
+        print('📥 Got download URL: $downloadUrl');
+        
+        // Langsung buka URL di browser untuk download
+        await DownloadHelper.downloadFile(
+          url: downloadUrl,
+          fileName: 'buku_export_${DateFormat('ddMMyyyy_HHmmss').format(DateTime.now())}.pdf',
+          context: context,
+        );
+        
+        return true;
+      } else {
+        print('❌ No download URL received');
+        if (context != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal mendapatkan URL download dari server'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+    } catch (e) {
+      print('❌ API PDF export error: $e');
+      if (context != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error export PDF: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> downloadImportTemplateViaAPI({BuildContext? context}) async {
+    try {
+      print('🚀 Starting template download via API...');
+      
+      // Get download URL from API
+      final downloadUrl = await _apiService.downloadBookTemplate();
+      
+      if (downloadUrl != null && context != null) {
+        print('📥 Got template download URL: $downloadUrl');
+        
+        // Langsung buka URL di browser untuk download
+        await DownloadHelper.downloadFile(
+          url: downloadUrl,
+          fileName: 'template_buku_import_${DateFormat('ddMMyyyy_HHmmss').format(DateTime.now())}.xlsx',
+          context: context,
+        );
+        
+        return true;
+      } else {
+        print('❌ No template download URL received');
+        if (context != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal mendapatkan URL template dari server'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+    } catch (e) {
+      print('❌ API template download error: $e');
+      if (context != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error download template: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
   // Export books to Excel
-  Future<bool> exportBooksToExcel(List<Book> books) async {
+  Future<bool> exportBooksToExcel(List<Book> books, {BuildContext? context}) async {
     try {
       var excel = Excel.createExcel();
       var sheet = excel['Books Data'];
@@ -45,15 +184,23 @@ class ImportExportService {
 
       String fileName = 'Data_Buku_${DateFormat('ddMMyyyy_HHmmss').format(DateTime.now())}.xlsx';
       
-      // Save file using file_saver
-      await FileSaver.instance.saveFile(
-        name: fileName,
-        bytes: Uint8List.fromList(fileBytes),
-        ext: 'xlsx',
-        mimeType: MimeType.microsoftExcel,
-      );
-
-      return true;
+      // Use SimpleFileService for better mobile support
+      if (context != null) {
+        return await SimpleFileService.saveFile(
+          fileName: fileName,
+          bytes: Uint8List.fromList(fileBytes),
+          context: context,
+        );
+      } else {
+        // Fallback to FileSaver for backward compatibility
+        await FileSaver.instance.saveFile(
+          name: fileName,
+          bytes: Uint8List.fromList(fileBytes),
+          ext: 'xlsx',
+          mimeType: MimeType.microsoftExcel,
+        );
+        return true;
+      }
     } catch (e) {
       print('Error exporting to Excel: $e');
       return false;
@@ -61,7 +208,7 @@ class ImportExportService {
   }
 
   // Export books to PDF
-  Future<bool> exportBooksToPDF(List<Book> books) async {
+  Future<bool> exportBooksToPDF(List<Book> books, {BuildContext? context}) async {
     try {
       // Debug: check if books is empty
       print('Exporting ${books.length} books to PDF');
@@ -283,15 +430,23 @@ class ImportExportService {
       final bytes = await pdf.save();
       String fileName = 'Laporan_Buku_${DateFormat('ddMMyyyy_HHmmss').format(DateTime.now())}.pdf';
       
-      // Use FileSaver for direct download
-      await FileSaver.instance.saveFile(
-        name: fileName,
-        bytes: bytes,
-        ext: 'pdf',
-        mimeType: MimeType.pdf,
-      );
-      
-      return true;
+      // Use SimpleFileService for better mobile support
+      if (context != null) {
+        return await SimpleFileService.saveFile(
+          fileName: fileName,
+          bytes: bytes,
+          context: context,
+        );
+      } else {
+        // Fallback to FileSaver for backward compatibility
+        await FileSaver.instance.saveFile(
+          name: fileName,
+          bytes: bytes,
+          ext: 'pdf',
+          mimeType: MimeType.pdf,
+        );
+        return true;
+      }
     } catch (e) {
       print('Error exporting to PDF: $e');
       return false;
@@ -377,7 +532,7 @@ class ImportExportService {
   }
 
   // Get template Excel file for import
-  Future<bool> downloadImportTemplate() async {
+  Future<bool> downloadImportTemplate({BuildContext? context}) async {
     try {
       var excel = Excel.createExcel();
       var sheet = excel['Template Import Buku'];
@@ -426,15 +581,24 @@ class ImportExportService {
 
       String fileName = 'Template_Import_Buku_${DateFormat('ddMMyyyy').format(DateTime.now())}.xlsx';
       
-      await FileSaver.instance.saveFile(
-        name: fileName,
-        bytes: Uint8List.fromList(fileBytes),
-        ext: 'xlsx',
-        mimeType: MimeType.microsoftExcel,
-      );
-
-      print('DEBUG: Template downloaded: $fileName');
-      return true;
+      // Use SimpleFileService for better mobile support
+      if (context != null) {
+        return await SimpleFileService.saveFile(
+          fileName: fileName,
+          bytes: Uint8List.fromList(fileBytes),
+          context: context,
+        );
+      } else {
+        // Fallback to FileSaver for backward compatibility
+        await FileSaver.instance.saveFile(
+          name: fileName,
+          bytes: Uint8List.fromList(fileBytes),
+          ext: 'xlsx',
+          mimeType: MimeType.microsoftExcel,
+        );
+        print('DEBUG: Template downloaded: $fileName');
+        return true;
+      }
     } catch (e) {
       print('Error creating template: $e');
       return false;

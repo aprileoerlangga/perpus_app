@@ -93,6 +93,263 @@ class _MyPeminjamanListScreenState extends State<MyPeminjamanListScreen> with Ti
     }
   }
 
+  // === Return Book Methods ===
+  Future<void> _showReturnConfirmation(Peminjaman peminjaman) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.keyboard_return_rounded,
+                  color: Color(0xFF059669),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Kembalikan Buku',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Apakah Anda yakin ingin mengembalikan buku ini?',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1976D2).withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF1976D2).withOpacity(0.15),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: const Color(0xFF1976D2).withOpacity(0.1),
+                      ),
+                      child: const Icon(
+                        Icons.book_rounded,
+                        color: Color(0xFF1976D2),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            peminjaman.book.judul,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF1E293B),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            peminjaman.book.pengarang,
+                            style: const TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[600],
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: const Text(
+                'Batal',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _processBookReturn(peminjaman);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Ya, Kembalikan',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _processBookReturn(Peminjaman peminjaman) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1976D2)),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Memproses pengembalian...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      // Call API to return book
+      await _apiService.returnBook(peminjaman.id);
+      
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Buku "${peminjaman.book.judul}" berhasil dikembalikan',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF059669),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+      
+      // Refresh the list
+      await _loadInitial();
+      
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(
+                  Icons.error_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Gagal mengembalikan buku. Silakan coba lagi.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFFDC2626),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+      
+      print('Error returning book: $e');
+    }
+  }
+
   Future<void> _loadInitial() async {
     setState(() {
       _isLoading = true;
@@ -391,15 +648,15 @@ class _MyPeminjamanListScreenState extends State<MyPeminjamanListScreen> with Ti
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         child: Row(
-          children: [
-            Expanded(child: _buildStatCard('Total', stats['total']!, Icons.library_books, const Color(0xFF1976D2))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('Dipinjam', stats['borrowed']!, Icons.schedule, const Color(0xFFFF9800))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('Kembali', stats['returned']!, Icons.check_circle, const Color(0xFF4CAF50))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('Terlambat', stats['overdue']!, Icons.warning, const Color(0xFFF44336))),
-          ],
+          // children: [
+          //   Expanded(child: _buildStatCard('Total', stats['total']!, Icons.library_books, const Color(0xFF1976D2))),
+          //   const SizedBox(width: 12),
+          //   Expanded(child: _buildStatCard('Dipinjam', stats['borrowed']!, Icons.schedule, const Color(0xFFFF9800))),
+          //   const SizedBox(width: 12),
+          //   Expanded(child: _buildStatCard('Kembali', stats['returned']!, Icons.check_circle, const Color(0xFF4CAF50))),
+          //   const SizedBox(width: 12),
+          //   Expanded(child: _buildStatCard('Terlambat', stats['overdue']!, Icons.warning, const Color(0xFFF44336))),
+          // ],
         ),
       ),
     );
@@ -676,9 +933,9 @@ class _MyPeminjamanListScreenState extends State<MyPeminjamanListScreen> with Ti
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: (peminjaman.book.path?.isNotEmpty ?? false)
+                    child: (peminjaman.book.coverUrl != null && peminjaman.book.coverUrl!.isNotEmpty)
                         ? Image.network(
-                            'http://localhost:8000/storage/${peminjaman.book.path}',
+                            peminjaman.book.coverUrl!,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
                               return _buildBookPlaceholder(peminjaman.book.judul);
@@ -790,6 +1047,35 @@ class _MyPeminjamanListScreenState extends State<MyPeminjamanListScreen> with Ti
                 ),
               ],
             ),
+            
+            // Tombol Pengembalian - hanya untuk buku yang belum dikembalikan
+            if (peminjaman.status != '3' && peminjaman.status != '2') ...[
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showReturnConfirmation(peminjaman),
+                  icon: const Icon(Icons.keyboard_return_rounded, size: 20),
+                  label: const Text(
+                    'Kembalikan Buku',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                    shadowColor: const Color(0xFF059669).withOpacity(0.3),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

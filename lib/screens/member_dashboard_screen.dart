@@ -263,6 +263,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
                               Icons.logout_rounded,
@@ -361,22 +362,22 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                     slivers: [
                       // Modern App Bar
                       SliverAppBar(
-                        expandedHeight: 120,
+                        expandedHeight: 100,
                         floating: true,
                         pinned: true,
                         elevation: 0,
                         backgroundColor: Colors.transparent,
                         flexibleSpace: FlexibleSpaceBar(
-                          title: Text(
+                          title: const Text(
                             'Dashboard Member',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 18,
+                              fontSize: 16,
                             ),
                           ),
                           background: Container(
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               gradient: LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
@@ -417,21 +418,21 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                                   _logout();
                                 },
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Icon(
                                         Icons.logout_rounded,
                                         color: Colors.white,
-                                        size: 20,
+                                        size: 18,
                                       ),
-                                      SizedBox(width: 6),
+                                      SizedBox(width: 4),
                                       Text(
                                         'Logout',
                                         style: TextStyle(
                                           color: Colors.white,
-                                          fontSize: 14,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -447,20 +448,20 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                       // Content
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.all(20.0),
+                          padding: const EdgeInsets.all(16.0),
                           child: Column(
                             children: [
                               // Welcome Card
                               _buildModernWelcomeCard(),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
 
                               // Summary Cards
                               _buildModernSummarySection(),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
 
                               // Active Loans
                               _buildModernActiveLoansSection(),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
                               
                               // Main Menu
                               _buildModernMainMenu(),
@@ -495,12 +496,12 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
           ],
           stops: [0.0, 0.6, 1.0],
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF667eea).withOpacity(0.15),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
             spreadRadius: 0,
           ),
           BoxShadow(
@@ -511,36 +512,36 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(28.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [Color(0xFF667eea), Color(0xFF764ba2)],
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF667eea).withOpacity(0.3),
-                        blurRadius: 16,
-                        offset: const Offset(0, 8),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
                   child: const Icon(
                     Icons.auto_stories_rounded,
                     color: Colors.white,
-                    size: 28,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -548,35 +549,37 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                       Text(
                         _getGreeting(),
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           color: Colors.grey.shade600,
                           fontWeight: FontWeight.w500,
                           letterSpacing: 0.3,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       _userName == null
                           ? _buildShimmerName()
                           : Text(
                               _userName!,
                               style: const TextStyle(
-                                fontSize: 24,
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF1a202c),
                                 letterSpacing: -0.5,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: const Color(0xFF667eea).withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFF667eea).withOpacity(0.1),
                   width: 1,
@@ -587,14 +590,14 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                   Icon(
                     Icons.lightbulb_outline_rounded,
                     color: const Color(0xFF667eea),
-                    size: 20,
+                    size: 18,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Jangan lupa kembalikan buku tepat waktu! 📚',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: const Color(0xFF667eea),
                         fontWeight: FontWeight.w500,
                       ),
@@ -611,8 +614,8 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
 
   Widget _buildShimmerName() {
     return Container(
-      height: 24,
-      width: 160,
+      height: 20,
+      width: 140,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.centerLeft,
@@ -623,7 +626,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
             Colors.grey.shade300,
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
     );
   }
@@ -642,11 +645,11 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 16),
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
           child: Text(
             'Ringkasan Anda',
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
@@ -666,10 +669,10 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _buildModernSummaryCard(
-                      'Terlambat',
+                      'WOI! Terlambat',
                       _jumlahTerlambat.toString(),
                       Icons.schedule_rounded,
                       const LinearGradient(
@@ -687,7 +690,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
     return Row(
       children: [
         Expanded(child: _buildSkeletonCard()),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(child: _buildSkeletonCard()),
       ],
     );
@@ -695,7 +698,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
 
   Widget _buildSkeletonCard() {
     return Container(
-      height: 100,
+      height: 90,
       decoration: BoxDecoration(
         color: Colors.white24,
         borderRadius: BorderRadius.circular(16),
@@ -713,7 +716,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         onTap: () {
           HapticFeedback.lightImpact();
           if (title == 'Buku Dipinjam' || title == 'Terlambat') {
@@ -723,15 +726,15 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
           }
         },
         child: Container(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: gradient,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: gradient.colors.first.withOpacity(0.4),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                color: gradient.colors.first.withOpacity(0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
                 spreadRadius: -4,
               ),
             ],
@@ -743,16 +746,16 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: Colors.white.withOpacity(0.3),
                         width: 1,
                       ),
                     ),
-                    child: Icon(icon, color: Colors.white, size: 22),
+                    child: Icon(icon, color: Colors.white, size: 18),
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -761,7 +764,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                         value,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 32,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
                           letterSpacing: -1,
                         ),
@@ -772,7 +775,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -781,22 +784,22 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                       title,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
-                        fontSize: 15,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.3,
                       ),
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(
                       Icons.arrow_forward_ios_rounded,
                       color: Colors.white.withOpacity(0.8),
-                      size: 14,
+                      size: 12,
                     ),
                   ),
                 ],
@@ -811,9 +814,9 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
   Widget _buildProgressBar(int current, int max) {
     final percentage = current / max;
     return Container(
-      width: 60,
-      height: 4,
-      margin: const EdgeInsets.only(top: 4),
+      width: 50,
+      height: 3,
+      margin: const EdgeInsets.only(top: 3),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.3),
         borderRadius: BorderRadius.circular(2),
@@ -831,17 +834,17 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
     );
   }
 
-  // Modern Active Loans Section
+  // Modern Active Loans Section - DIPERBAIKI UNTUK MENCEGAH OVERFLOW
   Widget _buildModernActiveLoansSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 16),
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
           child: Text(
             'Sedang Dipinjam',
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
@@ -851,12 +854,13 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
             ? _buildActiveLoansLoading()
             : _daftarPinjamanAktif.isEmpty
                 ? _buildEmptyActiveLoans()
-                : SizedBox(
-                    height: 160,
+                : Container(
+                    height: 180, // Tinggi diperbesar lagi
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 4), // Padding minimal
                       itemCount: _daftarPinjamanAktif.length,
-                      separatorBuilder: (context, index) => const SizedBox(width: 16),
+                      separatorBuilder: (context, index) => const SizedBox(width: 12),
                       itemBuilder: (context, index) {
                         final peminjaman = _daftarPinjamanAktif[index];
                         return _buildModernLoanCard(peminjaman);
@@ -868,18 +872,24 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
   }
 
   Widget _buildActiveLoansLoading() {
-    return SizedBox(
-      height: 160,
+    return Container(
+      height: 180,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: 3,
-        separatorBuilder: (context, index) => const SizedBox(width: 16),
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           return Container(
-            width: 280,
+            width: 300,
             decoration: BoxDecoration(
               color: Colors.white24,
               borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
             ),
           );
         },
@@ -890,7 +900,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
   Widget _buildEmptyActiveLoans() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white24,
         borderRadius: BorderRadius.circular(16),
@@ -899,15 +909,15 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
         children: [
           Icon(
             Icons.book_outlined,
-            size: 48,
+            size: 40,
             color: Colors.white70,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
             'Tidak ada buku yang sedang dipinjam',
             style: TextStyle(
               color: Colors.white70,
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
@@ -936,7 +946,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         onTap: () {
           HapticFeedback.lightImpact();
           Navigator.of(context).push(MaterialPageRoute(
@@ -944,9 +954,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
           )).then((_) => _loadInitialData());
         },
         child: Container(
-          width: 300,
-          height: 160, // Set fixed height to prevent overflow
-          padding: const EdgeInsets.all(16), // Further reduced padding from 20 to 16
+          width: 300, // Lebar diperbesar lebih banyak
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -957,7 +965,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                       ? [const Color(0xFFFFB74D), const Color(0xFFFF9800)]
                       : [Colors.white, const Color(0xFFF8FAFF)],
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
                 color: (isOverdue 
@@ -965,8 +973,8 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                     : daysLeft <= 3 
                         ? Colors.orange 
                         : const Color(0xFF667eea)).withOpacity(0.2),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
                 spreadRadius: -4,
               ),
             ],
@@ -975,23 +983,23 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
               width: 1,
             ) : null,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min, // Use minimum size
-            children: [
-              // Header with icon and title
-              Expanded(
-                flex: 2,
-                child: Row(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min, // Penting untuk mencegah overflow
+              children: [
+                // Header with icon and title
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8), // Further reduced padding
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: (isOverdue || daysLeft <= 3) 
                             ? Colors.white.withOpacity(0.2) 
                             : const Color(0xFF667eea).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10), // Further reduced radius
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: (isOverdue || daysLeft <= 3)
                               ? Colors.white.withOpacity(0.3)
@@ -1004,39 +1012,39 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                         color: (isOverdue || daysLeft <= 3) 
                             ? Colors.white 
                             : const Color(0xFF667eea),
-                        size: 18, // Further reduced icon size
+                        size: 16,
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min, // Minimize height
                         children: [
                           Text(
                             peminjaman.book.judul,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 13, // Further reduced font size
+                              fontSize: 13,
                               color: (isOverdue || daysLeft <= 3) 
                                   ? Colors.white 
                                   : const Color(0xFF1a202c),
-                              letterSpacing: -0.3,
+                              letterSpacing: -0.2,
+                              height: 1.2,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 2), // Reduced spacing
+                          const SizedBox(height: 4),
                           Row(
                             children: [
                               Icon(
                                 Icons.person_outline_rounded,
-                                size: 12, // Further reduced icon size
+                                size: 10,
                                 color: (isOverdue || daysLeft <= 3)
                                     ? Colors.white70
                                     : Colors.grey.shade600,
                               ),
-                              const SizedBox(width: 3),
+                              const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   peminjaman.book.pengarang,
@@ -1044,7 +1052,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                                     color: (isOverdue || daysLeft <= 3)
                                         ? Colors.white70
                                         : Colors.grey.shade600,
-                                    fontSize: 11, // Further reduced font size
+                                    fontSize: 10,
                                     fontWeight: FontWeight.w500,
                                   ),
                                   maxLines: 1,
@@ -1058,17 +1066,16 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                     ),
                   ],
                 ),
-              ),
-              // Bottom section with date and status
-              Expanded(
-                flex: 3,
-                child: Container(
-                  padding: const EdgeInsets.all(10), // Further reduced padding
+                const SizedBox(height: 16),
+                // Bottom section with date and status
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: (isOverdue || daysLeft <= 3)
                         ? Colors.white.withOpacity(0.15)
                         : const Color(0xFF667eea).withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: (isOverdue || daysLeft <= 3)
                           ? Colors.white.withOpacity(0.2)
@@ -1080,30 +1087,30 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Date header - more compact
+                      // Date header
                       Row(
                         children: [
                           Icon(
                             Icons.schedule_rounded,
-                            size: 12, // Further reduced icon size
+                            size: 10,
                             color: (isOverdue || daysLeft <= 3)
                                 ? Colors.white
                                 : const Color(0xFF667eea),
                           ),
-                          const SizedBox(width: 3),
+                          const SizedBox(width: 4),
                           Text(
                             'Batas Kembali',
                             style: TextStyle(
                               color: (isOverdue || daysLeft <= 3)
                                   ? Colors.white70
                                   : const Color(0xFF667eea),
-                              fontSize: 10, // Further reduced font size
+                              fontSize: 9,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       // Date text
                       Text(
                         _formatDate(peminjaman.tanggalKembali),
@@ -1111,18 +1118,18 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                           color: (isOverdue || daysLeft <= 3)
                               ? Colors.white
                               : const Color(0xFF1a202c),
-                          fontSize: 11, // Further reduced font size
+                          fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 4), // Reduced spacing
+                      const SizedBox(height: 6),
                       // Status chip
                       _buildStatusChip(isOverdue, daysLeft),
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1152,33 +1159,41 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
       icon = Icons.check_circle_outline_rounded;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), // Further reduced padding
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12), // Further reduced radius
-        border: Border.all(
-          color: (isOverdue || daysLeft <= 3)
-              ? Colors.white.withOpacity(0.3)
-              : const Color(0xFF10B981).withOpacity(0.2),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 8, color: textColor), // Further reduced icon size
-          const SizedBox(width: 3), // Further reduced spacing
-          Text(
-            label,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 8, // Further reduced font size
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.2,
-            ),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 200), // Batasi lebar maksimal
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: (isOverdue || daysLeft <= 3)
+                ? Colors.white.withOpacity(0.3)
+                : const Color(0xFF10B981).withOpacity(0.2),
+            width: 1,
           ),
-        ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 8, color: textColor),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 7,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.1,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1254,11 +1269,11 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 16),
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
           child: Text(
             'Menu Utama',
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
@@ -1278,7 +1293,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
             )).then((_) => _loadInitialData());
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _buildModernMenuButton(
           icon: Icons.history_rounded,
           label: 'Riwayat Peminjaman',
@@ -1307,19 +1322,19 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: gradient,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: gradient.colors.first.withOpacity(0.4),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                color: gradient.colors.first.withOpacity(0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
                 spreadRadius: -4,
               ),
             ],
@@ -1327,18 +1342,18 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: Colors.white.withOpacity(0.3),
                     width: 1,
                   ),
                 ),
-                child: Icon(icon, color: Colors.white, size: 28),
+                child: Icon(icon, color: Colors.white, size: 24),
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1347,17 +1362,17 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                       label,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         letterSpacing: -0.3,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       description,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.85),
-                        fontSize: 14,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.2,
                       ),
@@ -1366,15 +1381,15 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.arrow_forward_rounded,
                   color: Colors.white.withOpacity(0.9),
-                  size: 20,
+                  size: 16,
                 ),
               ),
             ],

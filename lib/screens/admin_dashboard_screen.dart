@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 import 'package:perpus_app/api/api_service.dart';
-import 'package:perpus_app/models/peminjaman_response.dart';
 import 'package:perpus_app/screens/auth/login_screen.dart';
 import 'package:perpus_app/screens/book/book_list_screen.dart';
 import 'package:perpus_app/screens/book/book_form_screen.dart';
-import 'package:perpus_app/screens/category/modern_category_screen.dart';
 import 'package:perpus_app/screens/category/category_form_screen.dart';
+import 'package:perpus_app/screens/category/category_list_screen.dart';
 import 'package:perpus_app/screens/member/member_list_screen.dart';
 import 'package:perpus_app/screens/peminjaman/peminjaman_list_screen.dart';
 
@@ -22,16 +22,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
   String? _userName;
   bool _isLoading = true;
 
-  // Statistik data
+  // Statistik data - Gunakan data real-time dari dashboard API
   int _totalBooks = 0;
+  int _totalStock = 0;
   int _totalCategories = 0;
   int _totalUsers = 0;
   int _aktivePeminjaman = 0;  // Peminjaman yang masih aktif
+  int _totalReturned = 0;     // Total buku yang dikembalikan
   bool _isLoadingStats = true;
 
   // Animation controllers
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+  
+  // Auto-refresh timer
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -39,6 +44,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
     _initAnimations();
     _loadUserData();
     _loadStatistics();
+    _startAutoRefresh();
   }
 
   void _initAnimations() {
@@ -55,7 +61,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
   @override
   void dispose() {
     _fadeController.dispose();
+    _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        _loadStatistics();
+        // Debug: Auto-refresh dashboard statistics
+      }
+    });
   }
 
   Future<void> _loadUserData() async {
@@ -73,100 +89,62 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
 
   Future<void> _loadStatistics() async {
     try {
-      // Mengambil data statistik secara paralel
-      final results = await Future.wait([
-        _getBookCount(),           // Fungsi untuk mendapatkan jumlah buku yang akurat
-        _apiService.getCategories(),
-        _getMemberCount(),         // Fungsi untuk mendapatkan jumlah member yang akurat
-        _apiService.getPeminjamanList(),
-      ]);
-
-      // Menghitung statistik peminjaman aktif
-      final peminjamanList = (results[3] as PeminjamanResponse).peminjamanList;
-      int aktivePeminjaman = 0;
-      for (var peminjaman in peminjamanList) {
-        if (peminjaman.tanggalPengembalian == null) {
-          aktivePeminjaman++;
-        }
-      }
-
-      setState(() {
-        _totalBooks = results[0] as int;  // Total buku
-        _totalCategories = (results[1] as List).length;
-        _totalUsers = results[2] as int;  // Total member dengan fungsi yang lebih akurat
-        _aktivePeminjaman = aktivePeminjaman;  // Peminjaman yang masih aktif
-        _isLoadingStats = false;
-      });
-    } catch (e) {
-      print('Error loading statistics: $e');
-      setState(() {
-        _isLoadingStats = false;
-      });
-    }
-  }
-
-  // Fungsi yang lebih sederhana untuk mendapatkan jumlah buku
-  Future<int> _getBookCount() async {
-    try {
-      int totalBooks = 0;
-      int currentPage = 1;
-      int maxPages = 20; // Batasi untuk keamanan
+      setState(() => _isLoadingStats = true);
       
-      while (currentPage <= maxPages) {
-        final response = await _apiService.getBooks(page: currentPage);
-        totalBooks += response.books.length;
+      print('🔄 Loading dashboard statistics...');
+      final dashboardData = await _apiService.getDashboardData();
+      print('📊 Received dashboard data: $dashboardData');
+
+      if (mounted) {
+        setState(() {
+          // Data dari dashboard API dengan logging sesuai response struktur
+          _totalBooks = dashboardData['total_books'] ?? 0;
+          _totalStock = dashboardData['total_stock'] ?? 0;
+          _totalCategories = dashboardData['total_categories'] ?? 0; // Fallback jika tidak ada di API
+          _totalUsers = dashboardData['total_members'] ?? 0;
+          _aktivePeminjaman = dashboardData['total_borrowed'] ?? 0;
+          _totalReturned = dashboardData['total_returned'] ?? 0;
+          _isLoadingStats = false;
+        });
         
-        print('Page $currentPage: ${response.books.length} books, hasMore: ${response.hasMore}');
-        
-        // Jika tidak ada buku di halaman ini atau hasMore false, stop
-        if (response.books.isEmpty || !response.hasMore) {
-          break;
-        }
-        
-        currentPage++;
+        print('✅ Statistics updated from API response:');
+        print('   📚 Books: $_totalBooks (totalBuku)');
+        print('   📦 Stock: $_totalStock (totalStok)');
+        print('   🏷️  Categories: $_totalCategories (fallback)');
+        print('   👥 Members: $_totalUsers (totalMember)');
+        print('   📖 Borrowed: $_aktivePeminjaman (totalDipinjam)');
+        print('   ✅ Returned: $_totalReturned (totalDikembalikan)');
       }
       
-      print('Total books counted: $totalBooks');
-      return totalBooks;
-      
     } catch (e) {
-      print('Error getting book count: $e');
-      return 0;
-    }
-  }
-
-  // Fungsi untuk mendapatkan jumlah member yang akurat
-  Future<int> _getMemberCount() async {
-    try {
-      int totalMembers = 0;
-      int currentPage = 1;
-      int maxPages = 20; // Batasi untuk keamanan
-      
-      while (currentPage <= maxPages) {
-        final response = await _apiService.getMembers(page: currentPage);
-        totalMembers += response.users.length;
+      print('❌ Dashboard API failed: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+        });
         
-        print('Member Page $currentPage: ${response.users.length} members');
-        
-        // Jika tidak ada member di halaman ini, stop
-        if (response.users.isEmpty) {
-          break;
-        }
-        
-        // Periksa apakah ada halaman selanjutnya berdasarkan currentPage dan lastPage
-        if (response.currentPage >= response.lastPage) {
-          break;
-        }
-        
-        currentPage++;
+        // Show error message to user
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Gagal memuat statistik: ${e.toString().length > 50 ? e.toString().substring(0, 50) + '...' : e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Coba Lagi',
+              textColor: Colors.white,
+              onPressed: () => _loadStatistics(),
+            ),
+          ),
+        );
       }
-      
-      print('Total members counted: $totalMembers');
-      return totalMembers;
-      
-    } catch (e) {
-      print('Error getting member count: $e');
-      return 0;
     }
   }
 
@@ -180,6 +158,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
         ),
         elevation: 16,
         child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
@@ -293,6 +272,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
                           ),
                         ),
                         child: const Row(
+                          mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
@@ -301,12 +281,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
                               size: 20,
                             ),
                             SizedBox(width: 8),
-                            Text(
-                              'Logout',
-                              style: TextStyle(
-                                color: Color(0xFFFF6B6B),
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            Flexible(
+                              child: Text(
+                                'Logout',
+                                style: TextStyle(
+                                  color: Color(0xFFFF6B6B),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -332,6 +315,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
             borderRadius: BorderRadius.circular(20),
           ),
           child: Container(
+            constraints: const BoxConstraints(maxWidth: 300),
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
@@ -368,6 +352,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
+    
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -375,6 +362,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
         backgroundColor: Colors.transparent,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
               'Dashboard Admin',
@@ -383,6 +371,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
                 fontWeight: FontWeight.bold,
                 color: Colors.indigo,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
             if (_userName != null)
               Text(
@@ -392,14 +381,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
                   color: Colors.grey[600],
                   fontWeight: FontWeight.normal,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
           ],
         ),
         automaticallyImplyLeading: false,
         actions: [
-          // Logout Button dengan desain modern
+          // Logout Button dengan desain modern - responsive
           Container(
-            margin: const EdgeInsets.only(right: 16),
+            margin: EdgeInsets.only(right: isSmallScreen ? 8 : 16),
+            constraints: BoxConstraints(
+              maxWidth: isSmallScreen ? 80 : double.infinity,
+            ),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
@@ -423,31 +416,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
                   _logout();
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: const Row(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSmallScreen ? 8 : 16, 
+                    vertical: 10
+                  ),
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.logout_rounded,
                         color: Colors.white,
                         size: 20,
                       ),
-                      SizedBox(width: 6),
-                      Text(
-                        'Logout',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                      if (!isSmallScreen) ...[
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Logout',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: isSmallScreen ? 8 : 16),
         ],
         toolbarHeight: 80,
       ),
@@ -464,20 +462,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
             )
           : FadeTransition(
               opacity: _fadeAnimation,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildWelcomeCard(),
-                    const SizedBox(height: 24),
-                    _buildStatisticsCards(),
-                    const SizedBox(height: 24),
-                    _buildQuickActions(),
-                    const SizedBox(height: 24),
-                    _buildMenuNavigation(),
-                  ],
-                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.all(constraints.maxWidth < 600 ? 16 : 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildWelcomeCard(),
+                        const SizedBox(height: 24),
+                        _buildStatisticsCards(constraints),
+                        const SizedBox(height: 24),
+                        _buildQuickActions(constraints),
+                        const SizedBox(height: 24),
+                        _buildMenuNavigation(),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
     );
@@ -485,6 +487,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
 
   Widget _buildWelcomeCard() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -501,49 +504,94 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '📚 Sistem Perpustakaan',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isSmallCard = constraints.maxWidth < 300;
+          
+          return isSmallCard 
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.library_books,
+                      color: Colors.white,
+                      size: 32,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Kelola perpustakaan dengan mudah dan efisien',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
+                  const SizedBox(height: 16),
+                  const Text(
+                    '📚 Sistem Perpustakaan',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.library_books,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Kelola perpustakaan dengan mudah dan efisien',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '📚 Sistem Perpustakaan',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Kelola perpustakaan dengan mudah dan efisien',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.library_books,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
+                ],
+              );
+        },
       ),
     );
   }
 
-  Widget _buildStatisticsCards() {
+  Widget _buildStatisticsCards(BoxConstraints constraints) {
+    final crossAxisCount = constraints.maxWidth < 600 ? 2 : 3;
+    final childAspectRatio = constraints.maxWidth < 600 ? 1.15 : 1.0;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -562,50 +610,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
               ),
             ),
             const SizedBox(width: 12),
-            const Text(
-              'Statistik Perpustakaan',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+            const Expanded(
+              child: Text(
+                'Statistik Perpustakaan',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Spacer(),
-            // Container(
-            //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            //   decoration: BoxDecoration(
-            //     color: Colors.green.withValues(alpha: 0.1),
-            //     borderRadius: BorderRadius.circular(20),
-            //     border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-            //   ),
-            //   child: Row(
-            //     mainAxisSize: MainAxisSize.min,
-            //     children: [
-            //       Icon(Icons.circle, color: Colors.green, size: 8),
-            //       const SizedBox(width: 6),
-            //       Text(
-            //         'Real-time',
-            //         style: TextStyle(
-            //           color: Colors.green,
-            //           fontSize: 12,
-            //           fontWeight: FontWeight.w600,
-            //         ),
-            //       ),
-            //     ],
-            //   ),
-            // ),
+            // Refresh button
+            IconButton(
+              onPressed: () => _loadStatistics(),
+              icon: Icon(
+                Icons.refresh,
+                color: Colors.indigo[600],
+              ),
+              tooltip: 'Refresh Data',
+            ),
           ],
         ),
         const SizedBox(height: 20),
         _isLoadingStats
-            ? _buildLoadingCards()
+            ? _buildLoadingCards(crossAxisCount, childAspectRatio)
             : GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
+                crossAxisCount: crossAxisCount,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 1.15,
+                childAspectRatio: childAspectRatio,
                 children: [
                   _buildModernStatCard(
                     'Total Buku',
@@ -616,15 +652,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
                     0,
                   ),
                   _buildModernStatCard(
-                    'Kategori',
-                    _totalCategories.toString(),
-                    Icons.category_rounded,
-                    Colors.green,
-                    'jenis kategori',
+                    'Total Stok',
+                    _totalStock.toString(),
+                    Icons.inventory_rounded,
+                    Colors.indigo,
+                    'stok keseluruhan',
                     1,
                   ),
                   _buildModernStatCard(
-                    'Anggota',
+                    'Total Member',
                     _totalUsers.toString(),
                     Icons.people_rounded,
                     Colors.orange,
@@ -639,21 +675,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
                     'buku dipinjam',
                     3,
                   ),
+                  _buildModernStatCard(
+                    'Dikembalikan',
+                    _totalReturned.toString(),
+                    Icons.assignment_return_outlined,
+                    Colors.teal,
+                    'buku dikembalikan',
+                    4,
+                  ),
                 ],
               ),
       ],
     );
   }
 
-  Widget _buildLoadingCards() {
+  Widget _buildLoadingCards(int crossAxisCount, double childAspectRatio) {
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
+      crossAxisCount: crossAxisCount,
       mainAxisSpacing: 16,
       crossAxisSpacing: 16,
-      childAspectRatio: 1.15,
-      children: List.generate(4, (index) => _buildLoadingCard()),
+      childAspectRatio: childAspectRatio,
+      children: List.generate(5, (index) => _buildLoadingCard()),
     );
   }
 
@@ -737,84 +781,127 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
                       ),
                     ),
                   ),
-                  // Content
+                  // Content with improved layout - FIXED VERSION
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Icon dan badge
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isSmallCard = constraints.maxWidth < 120;
+                        final cardHeight = constraints.maxHeight;
+                        
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                icon,
-                                color: color,
-                                size: 20,
+                            // Icon dan badge row - Fixed height allocation
+                            SizedBox(
+                              height: cardHeight * 0.25, // 25% untuk icon area
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(isSmallCard ? 8 : 10),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      icon,
+                                      color: color,
+                                      size: isSmallCard ? 16 : 20,
+                                    ),
+                                  ),
+                                  if (!isSmallCard)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: color.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Icon(
+                                        Icons.trending_up,
+                                        color: color,
+                                        size: 10,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6),
+                            
+                            const SizedBox(height: 8),
+                            
+                            // Value area - Fixed height and centered - 35% dari tinggi card
+                            SizedBox(
+                              height: cardHeight * 0.35,
+                              child: Center(
+                                child: TweenAnimationBuilder<int>(
+                                  duration: Duration(milliseconds: 1500 + (index * 200)),
+                                  tween: IntTween(begin: 0, end: int.tryParse(value) ?? 0),
+                                  builder: (context, animatedValue, child) {
+                                    return FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        animatedValue.toString(),
+                                        style: TextStyle(
+                                          fontSize: isSmallCard ? 24 : 32,
+                                          fontWeight: FontWeight.bold,
+                                          color: color,
+                                          height: 1.0,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
-                              child: Icon(
-                                Icons.trending_up,
-                                color: color,
-                                size: 10,
+                            ),
+                            
+                            // Text area - Expanded to fill remaining space - 40% untuk labels
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Title dengan auto-resize dan better layout
+                                  Flexible(
+                                    flex: 2, // Title mendapat ruang lebih besar
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        title,
+                                        style: TextStyle(
+                                          fontSize: isSmallCard ? 12 : 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                          height: 1.1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  
+                                  const SizedBox(height: 2),
+                                  
+                                  // Subtitle dengan auto-resize
+                                  Flexible(
+                                    flex: 1, // Subtitle mendapat ruang lebih kecil
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        subtitle,
+                                        style: TextStyle(
+                                          fontSize: isSmallCard ? 9 : 11,
+                                          color: Colors.grey[600],
+                                          height: 1.0,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 8),
-                        // Nilai
-                        TweenAnimationBuilder<int>(
-                          duration: Duration(milliseconds: 1500 + (index * 200)),
-                          tween: IntTween(begin: 0, end: int.tryParse(value) ?? 0),
-                          builder: (context, animatedValue, child) {
-                            return Text(
-                              animatedValue.toString(),
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: color,
-                                height: 1.0,
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 2),
-                        // Label
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                            height: 1.1,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[600],
-                            height: 1.0,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -826,7 +913,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
     );
   }
 
-  Widget _buildQuickActions() {
+  Widget _buildQuickActions(BoxConstraints constraints) {
+    final crossAxisCount = constraints.maxWidth < 600 ? 2 : 4;
+    final childAspectRatio = constraints.maxWidth < 600 ? 1.4 : 1.2;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -845,12 +935,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
               ),
             ),
             const SizedBox(width: 12),
-            const Text(
-              'Aksi Cepat',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+            const Expanded(
+              child: Text(
+                'Aksi Cepat',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -859,10 +952,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
         GridView.count(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
+          crossAxisCount: crossAxisCount,
           mainAxisSpacing: 16,
           crossAxisSpacing: 16,
-          childAspectRatio: 1.4,
+          childAspectRatio: childAspectRatio,
           children: [
             _buildModernActionCard(
               'Tambah Buku',
@@ -970,46 +1063,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
                       // Content
                       Padding(
                         padding: const EdgeInsets.all(18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Icon
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                icon,
-                                color: color,
-                                size: 22,
-                              ),
-                            ),
-                            const Spacer(),
-                            // Title
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                                height: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            // Description
-                            Text(
-                              description,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                height: 1.3,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isSmallCard = constraints.maxWidth < 140;
+                            
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Icon
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: color.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    icon,
+                                    color: color,
+                                    size: isSmallCard ? 18 : 22,
+                                  ),
+                                ),
+                                const Spacer(),
+                                // Title
+                                Flexible(
+                                  child: Text(
+                                    title,
+                                    style: TextStyle(
+                                      fontSize: isSmallCard ? 13 : 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                      height: 1.2,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                // Description
+                                Flexible(
+                                  child: Text(
+                                    description,
+                                    style: TextStyle(
+                                      fontSize: isSmallCard ? 10 : 12,
+                                      color: Colors.grey[600],
+                                      height: 1.3,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -1042,12 +1147,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
               ),
             ),
             const SizedBox(width: 12),
-            const Text(
-              'Menu Navigasi',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+            const Expanded(
+              child: Text(
+                'Menu Navigasi',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -1060,66 +1168,53 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withValues(alpha: 0.06),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-                spreadRadius: 0,
-              ),
-              BoxShadow(
-                color: Colors.grey.withValues(alpha: 0.04),
-                blurRadius: 8,
+                blurRadius: 10,
                 offset: const Offset(0, 2),
-                spreadRadius: 0,
               ),
             ],
           ),
           child: Column(
             children: [
-              _buildModernMenuTile(
-                'Manajemen Buku',
-                'Kelola koleksi buku perpustakaan',
-                Icons.book_rounded,
+              _buildMenuTile(
+                'Kelola Buku',
+                'Tambah, edit, dan hapus buku',
+                Icons.library_books_rounded,
                 Colors.blue,
                 () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const BookListScreen()),
                 ),
-                true,
               ),
-              _buildDivider(),
-              _buildModernMenuTile(
-                'Manajemen Kategori',
+              _buildMenuTile(
+                'Kelola Kategori',
                 'Atur kategori buku',
                 Icons.category_rounded,
                 Colors.green,
                 () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ModernCategoryScreen()),
+                  MaterialPageRoute(builder: (_) => const CategoryListScreen()),
                 ),
-                false,
               ),
-              _buildDivider(),
-              _buildModernMenuTile(
-                'Manajemen Member',
-                'Kelola data anggota perpustakaan',
+              _buildMenuTile(
+                'Kelola Member',
+                'Manajemen data member',
                 Icons.people_rounded,
                 Colors.orange,
                 () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const MemberListScreen()),
                 ),
-                false,
               ),
-              _buildDivider(),
-              _buildModernMenuTile(
-                'Riwayat Peminjaman',
-                'Lihat semua transaksi peminjaman',
-                Icons.history_rounded,
+              _buildMenuTile(
+                'Transaksi Peminjaman',
+                'Monitor peminjaman dan pengembalian',
+                Icons.swap_horiz_rounded,
                 Colors.purple,
                 () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const PeminjamanListScreen()),
                 ),
-                false,
+                isLast: true,
               ),
             ],
           ),
@@ -1128,82 +1223,47 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Ticker
     );
   }
 
-  Widget _buildModernMenuTile(String title, String subtitle, IconData icon, Color color, VoidCallback onTap, bool isFirst) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.vertical(
-        top: isFirst ? const Radius.circular(16) : Radius.zero,
-        bottom: const Radius.circular(16),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 24),
+  Widget _buildMenuTile(String title, String subtitle, IconData icon, Color color, VoidCallback onTap, {bool isLast = false}) {
+    return Column(
+      children: [
+        ListTile(
+          onTap: onTap,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: Colors.black87,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
             ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Colors.grey[400],
-                size: 14,
-              ),
+          ),
+          subtitle: Text(
+            subtitle,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
             ),
-          ],
+          ),
+          trailing: Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 14,
+            color: Colors.grey[400],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Container(
-      height: 1,
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.transparent,
-            Colors.grey.withValues(alpha: 0.15),
-            Colors.transparent,
-          ],
-        ),
-      ),
+        if (!isLast)
+          Divider(
+            height: 1,
+            color: Colors.grey[200],
+            indent: 56,
+          ),
+      ],
     );
   }
 }

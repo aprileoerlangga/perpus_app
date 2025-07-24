@@ -510,7 +510,7 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> with Ticker
 
   Widget _buildCategoryDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.grey[50],
         borderRadius: BorderRadius.circular(8),
@@ -518,22 +518,44 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> with Ticker
       child: DropdownButtonHideUnderline(
         child: DropdownButton<Category?>(
           value: _selectedCategory,
-          hint: const Text('Semua Kategori', style: TextStyle(fontSize: 13)),
+          hint: const Text(
+            'Semua Kategori',
+            style: TextStyle(fontSize: 12),
+            overflow: TextOverflow.ellipsis,
+          ),
           isExpanded: true,
+          icon: Icon(
+            Icons.keyboard_arrow_down,
+            color: Colors.grey[600],
+            size: 18,
+          ),
           onChanged: (category) {
             setState(() {
               _selectedCategory = category;
             });
             _fetchBooks(isRefreshing: true);
           },
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.black87,
+            fontWeight: FontWeight.w500,
+          ),
           items: [
             const DropdownMenuItem<Category?>(
               value: null,
-              child: Text('Semua Kategori', style: TextStyle(fontSize: 13)),
+              child: Text(
+                'Semua Kategori',
+                style: TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             ..._categories.map((category) => DropdownMenuItem<Category?>(
               value: category,
-              child: Text(category.name, style: const TextStyle(fontSize: 13)),
+              child: Text(
+                category.name,
+                style: const TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
             )),
           ],
         ),
@@ -543,7 +565,7 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> with Ticker
 
   Widget _buildSortDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.grey[50],
         borderRadius: BorderRadius.circular(8),
@@ -552,16 +574,47 @@ class _MemberBookListScreenState extends State<MemberBookListScreen> with Ticker
         child: DropdownButton<String>(
           value: _sortBy,
           isExpanded: true,
+          icon: Icon(
+            Icons.keyboard_arrow_down,
+            color: Colors.grey[600],
+            size: 18,
+          ),
           onChanged: (value) {
             setState(() {
               _sortBy = value!;
             });
             _sortBooks();
           },
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.black87,
+            fontWeight: FontWeight.w500,
+          ),
           items: const [
-            DropdownMenuItem(value: 'judul', child: Text('Judul', style: TextStyle(fontSize: 13))),
-            DropdownMenuItem(value: 'pengarang', child: Text('Pengarang', style: TextStyle(fontSize: 13))),
-            DropdownMenuItem(value: 'tahun', child: Text('Tahun', style: TextStyle(fontSize: 13))),
+            DropdownMenuItem(
+              value: 'judul',
+              child: Text(
+                'Judul',
+                style: TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            DropdownMenuItem(
+              value: 'pengarang',
+              child: Text(
+                'Pengarang',
+                style: TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            DropdownMenuItem(
+              value: 'tahun',
+              child: Text(
+                'Tahun',
+                style: TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
       ),

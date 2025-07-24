@@ -37,6 +37,13 @@ class _MemberListScreenState extends State<MemberListScreen> {
   DateTime? _cacheTimestamp;
   bool _isSearching = false;
   int _totalMembers = 0; // Total members dari server
+  
+  // State untuk statistik real-time dari dashboard API
+  int _dashboardTotalMembers = 0;
+  int _dashboardMembersWithBorrowings = 0;
+  int _dashboardMembersWithoutBorrowings = 0;
+  int _dashboardMembersOverdue = 0;
+  int _dashboardTotalActiveBorrowings = 0;
 
   @override
   void initState() {
@@ -46,6 +53,9 @@ class _MemberListScreenState extends State<MemberListScreen> {
     
     // Optimasi: Preload semua data member di background untuk performa search yang lebih baik
     _preloadAllData();
+    
+    // Load statistik dashboard real-time terlebih dahulu
+    _fetchMemberDashboardStatistics();
     
     // Load total member count dengan delay untuk menghindari race condition
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -121,6 +131,40 @@ class _MemberListScreenState extends State<MemberListScreen> {
     }
   }
 
+  // Fetch statistik real-time dari dashboard API
+  Future<void> _fetchMemberDashboardStatistics() async {
+    try {
+      final dashboardData = await _apiService.getMemberDashboardData();
+      
+      if (mounted) {
+        setState(() {
+          _dashboardTotalMembers = dashboardData['total_members'] ?? 0;
+          _dashboardMembersWithBorrowings = dashboardData['members_with_borrowings'] ?? 0;
+          _dashboardMembersWithoutBorrowings = dashboardData['members_without_borrowings'] ?? 0;
+          _dashboardMembersOverdue = dashboardData['members_overdue'] ?? 0;
+          _dashboardTotalActiveBorrowings = dashboardData['total_active_borrowings'] ?? 0;
+        });
+      }
+    } catch (e) {
+      print('Dashboard API failed, using fallback calculation: $e');
+      // Jika API gagal, gunakan perhitungan lokal sebagai fallback
+      if (mounted) {
+        _calculateFallbackStatistics();
+      }
+    }
+  }
+
+  // Fallback calculation jika dashboard API gagal
+  void _calculateFallbackStatistics() {
+    final stats = _calculateMemberStatistics(_filteredMembers);
+    setState(() {
+      _dashboardTotalMembers = stats['total'] ?? 0;
+      _dashboardMembersWithBorrowings = stats['withBorrowings'] ?? 0;
+      _dashboardMembersWithoutBorrowings = stats['withoutBorrowings'] ?? 0;
+      _dashboardMembersOverdue = stats['overdue'] ?? 0;
+    });
+  }
+
   // Optimasi: Invalidate cache untuk refresh data
   void _invalidateCache() {
     _allMembersCache.clear();
@@ -166,6 +210,9 @@ class _MemberListScreenState extends State<MemberListScreen> {
       // Load fresh data
       await _loadAllData(page: 1, query: _searchController.text.isNotEmpty ? _searchController.text : null);
       
+      // Refresh dashboard statistics
+      await _fetchMemberDashboardStatistics();
+      
       // Show success feedback
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -183,7 +230,7 @@ class _MemberListScreenState extends State<MemberListScreen> {
         );
       }
       
-      print('✅ OPTIMIZED REFRESH: Refresh completed successfully');
+      print('✅ OPTIMIZED REFRESH: Refresh completed successfully with dashboard statistics');
     } catch (e) {
       print('❌ OPTIMIZED REFRESH: Error during refresh: $e');
       if (mounted) {
@@ -240,18 +287,22 @@ class _MemberListScreenState extends State<MemberListScreen> {
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
+            textAlign: TextAlign.center,
           ),
           
           const SizedBox(height: 8),
           
           // Subtitle with more info
-          Text(
-            _getLoadingSubtitle(),
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 13,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              _getLoadingSubtitle(),
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 13,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
           
           // Progress estimation jika memungkinkan
@@ -303,23 +354,65 @@ class _MemberListScreenState extends State<MemberListScreen> {
   }
 
   Widget _buildStatisticsSummary() {
-    // Optimasi: Hitung statistik sekali saja untuk semua member
-    final stats = _calculateMemberStatistics(_filteredMembers);
+    // Gunakan statistik real-time dari dashboard API, fallback ke perhitungan lokal jika API gagal
+    final usesDashboardData = _dashboardTotalMembers > 0;
+    
+    final totalMembers = usesDashboardData ? _dashboardTotalMembers : _filteredMembers.length;
+    final withBorrowings = usesDashboardData ? _dashboardMembersWithBorrowings : _calculateMemberStatistics(_filteredMembers)['withBorrowings']!;
+    final withoutBorrowings = usesDashboardData ? _dashboardMembersWithoutBorrowings : _calculateMemberStatistics(_filteredMembers)['withoutBorrowings']!;
+    final overdue = usesDashboardData ? _dashboardMembersOverdue : _calculateMemberStatistics(_filteredMembers)['overdue']!;
     
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            Expanded(child: _buildSummaryCard('Total Member', stats['total'].toString(), Colors.blue, Icons.people)),
-            const SizedBox(width: 8),
-            Expanded(child: _buildSummaryCard('Punya Pinjaman', stats['withBorrowings'].toString(), Colors.orange, Icons.book)),
-            const SizedBox(width: 8),
-            Expanded(child: _buildSummaryCard('Terlambat', stats['overdue'].toString(), Colors.red, Icons.warning)),
-            const SizedBox(width: 8),
-            Expanded(child: _buildSummaryCard('Tidak Ada Pinjaman', stats['withoutBorrowings'].toString(), Colors.green, Icons.check_circle)),
-          ],
-        ),
+      child: Column(
+        children: [
+          // Indikator sumber data
+          // if (usesDashboardData)
+          //   Container(
+          //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          //     margin: const EdgeInsets.only(bottom: 8),
+          //     decoration: BoxDecoration(
+          //       color: Colors.green.shade100,
+          //       borderRadius: BorderRadius.circular(12),
+          //       border: Border.all(color: Colors.green.shade300),
+          //     ),
+          //     child: Row(
+          //       mainAxisSize: MainAxisSize.min,
+          //       children: [
+          //         Icon(Icons.cloud_done, color: Colors.green.shade700, size: 14),
+          //         const SizedBox(width: 4),
+          //         Text(
+          //           'Data Real-time dari Server',
+          //           style: TextStyle(
+          //             color: Colors.green.shade700,
+          //             fontSize: 11,
+          //             fontWeight: FontWeight.w600,
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //   ),
+          
+          // Kartu statistik
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildSummaryCard('Total Member', totalMembers.toString(), Colors.blue, Icons.people),
+                const SizedBox(width: 8),
+                _buildSummaryCard('Punya Pinjaman', withBorrowings.toString(), Colors.orange, Icons.book),
+                const SizedBox(width: 8),
+                _buildSummaryCard('Terlambat', overdue.toString(), Colors.red, Icons.warning),
+                const SizedBox(width: 8),
+                _buildSummaryCard('Tidak Ada Pinjaman', withoutBorrowings.toString(), Colors.green, Icons.check_circle),
+                if (_dashboardTotalActiveBorrowings > 0) ...[
+                  const SizedBox(width: 8),
+                  _buildSummaryCard('Total Pinjaman Aktif', _dashboardTotalActiveBorrowings.toString(), Colors.purple, Icons.auto_stories),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -352,54 +445,54 @@ class _MemberListScreenState extends State<MemberListScreen> {
   }
 
   Widget _buildSummaryCard(String title, String value, Color color, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+    return Container(
+      width: 100, // Fixed width untuk konsistensi
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [color.withOpacity(0.8), color]),
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [color.withOpacity(0.8), color]),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: Colors.white, size: 16),
+            child: Icon(icon, color: Colors.white, size: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 10,
+              color: color.withOpacity(0.8),
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 10,
-                color: color.withOpacity(0.8),
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -510,6 +603,11 @@ class _MemberListScreenState extends State<MemberListScreen> {
       
       // Debug log untuk melihat hasil pencarian
       print('Found ${_members.length} members');
+      
+      // Refresh dashboard statistics setelah load data berhasil
+      await _fetchMemberDashboardStatistics();
+      
+      print('✅ LOAD DATA: Successfully loaded members and statistics from dashboard API');
       
     } catch (e) {
       print('Error loading members: $e');
@@ -799,52 +897,82 @@ class _MemberListScreenState extends State<MemberListScreen> {
                       ),
                     ),
                     
-                    const SizedBox(width: 15),
+                    const SizedBox(height: 15),
                     
-                    // Filter Chips
-                    Container(
-                      margin: const EdgeInsets.only(top: 15),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildModernFilterChip(
-                              'Semua',
-                              _currentFilter == MemberFilter.semua,
-                              () => setState(() => _currentFilter = MemberFilter.semua),
-                              Colors.blue,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildModernFilterChip(
-                              'Punya Pinjaman',
-                              _currentFilter == MemberFilter.punyaPinjaman,
-                              () => setState(() => _currentFilter = MemberFilter.punyaPinjaman),
-                              Colors.orange,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildModernFilterChip(
-                              'Tidak Ada Pinjaman',
-                              _currentFilter == MemberFilter.tidakAdaPinjaman,
-                              () => setState(() => _currentFilter = MemberFilter.tidakAdaPinjaman),
-                              Colors.green,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildModernFilterChip(
-                              'Terlambat',
-                              _currentFilter == MemberFilter.terlambat,
-                              () => setState(() => _currentFilter = MemberFilter.terlambat),
-                              Colors.red,
-                            ),
-                          ],
-                        ),
+                    // Filter Chips - Fixed dengan SingleChildScrollView
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildModernFilterChip(
+                            'Semua',
+                            _currentFilter == MemberFilter.semua,
+                            () => setState(() => _currentFilter = MemberFilter.semua),
+                            Colors.blue,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildModernFilterChip(
+                            'Punya Pinjaman',
+                            _currentFilter == MemberFilter.punyaPinjaman,
+                            () => setState(() => _currentFilter = MemberFilter.punyaPinjaman),
+                            Colors.orange,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildModernFilterChip(
+                            'Tidak Ada Pinjaman',
+                            _currentFilter == MemberFilter.tidakAdaPinjaman,
+                            () => setState(() => _currentFilter = MemberFilter.tidakAdaPinjaman),
+                            Colors.green,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildModernFilterChip(
+                            'Terlambat',
+                            _currentFilter == MemberFilter.terlambat,
+                            () => setState(() => _currentFilter = MemberFilter.terlambat),
+                            Colors.red,
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
               
-              // Statistics Summary Cards
-              if (!_isLoading) _buildStatisticsSummary(),
+              // Statistics Summary Cards with refresh button
+              // if (!_isLoading) 
+              //   Column(
+              //     children: [
+              //       _buildStatisticsSummary(),
+                    // Tombol refresh statistik kecil
+                //     Container(
+                //       margin: const EdgeInsets.symmetric(horizontal: 20),
+                //       child: Row(
+                //         mainAxisAlignment: MainAxisAlignment.end,
+                //         children: [
+                //           TextButton.icon(
+                //             onPressed: () async {
+                //               await _fetchMemberDashboardStatistics();
+                //               if (mounted) {
+                //                 ScaffoldMessenger.of(context).showSnackBar(
+                //                   const SnackBar(
+                //                     content: Text('Statistik diperbarui'),
+                //                     duration: Duration(seconds: 1),
+                //                   ),
+                //                 );
+                //               }
+                //             },
+                //             icon: const Icon(Icons.refresh, size: 16),
+                //             label: const Text('Refresh Stats', style: TextStyle(fontSize: 12)),
+                //             style: TextButton.styleFrom(
+                //               foregroundColor: Colors.grey[600],
+                //               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                //             ),
+                //           ),
+                //         ],
+                //       ),
+                //     ),
+                //   ],
+                // ),
               
               // Content
               Expanded(
@@ -953,147 +1081,161 @@ class _MemberListScreenState extends State<MemberListScreen> {
           ),
         ],
       ),
-      child: ExpansionTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.purple.shade400, Colors.indigo.shade400],
-            ),
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Center(
-            child: Text(
-              member.name.isNotEmpty ? member.name[0].toUpperCase() : '?',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
         ),
-        title: Text(
-          member.name,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              member.email,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 13,
+        child: ExpansionTile(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          leading: Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.purple.shade400, Colors.indigo.shade400],
               ),
+              borderRadius: BorderRadius.circular(15),
             ),
-            const SizedBox(height: 6),
-            // Status member dengan warna yang sesuai
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: statusColor.withOpacity(0.3)),
-              ),
+            child: Center(
               child: Text(
-                memberStatus,
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                member.name.isNotEmpty ? member.name[0].toUpperCase() : '?',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
                 ),
               ),
             ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                _buildMiniStatChip('Aktif: $sedangDipinjam', sedangDipinjam > 0 ? Colors.blue : Colors.grey.shade400),
-                _buildMiniStatChip('Selesai: $sudahDikembalikan', sudahDikembalikan > 0 ? Colors.green : Colors.grey.shade400),
-                if (terlambat > 0)
-                  _buildMiniStatChip('Terlambat: $terlambat', Colors.red),
-              ],
+          ),
+          title: Text(
+            member.name,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
-            const SizedBox(height: 4),
-          ],
-        ),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: 1,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.transparent, Colors.grey.shade300, Colors.transparent],
-                    ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 4),
+              Text(
+                member.email,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              // Status member dengan warna yang sesuai
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: statusColor.withOpacity(0.3)),
+                ),
+                child: Text(
+                  memberStatus,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 16),
-                
-                // User Details
-                _buildModernDetailRow(Icons.person_outline, 'Username', member.username),
-                const SizedBox(height: 8),
-                _buildModernDetailRow(Icons.email_outlined, 'Email', member.email),
-                const SizedBox(height: 8),
-                _buildModernDetailRow(Icons.badge_outlined, 'ID Member', member.id.toString()),
-                const SizedBox(height: 8),
-                _buildModernDetailRow(
-                  statusColor == Colors.red ? Icons.warning_outlined : 
-                  statusColor == Colors.blue ? Icons.book_outlined : Icons.check_circle_outline,
-                  'Status Saat Ini',
-                  memberStatus,
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Statistics Cards - Using simple Row for better control
-                Row(
+              ),
+              const SizedBox(height: 6),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
                   children: [
-                    Expanded(
-                      child: _buildModernStatCard(
-                        'Sedang Dipinjam',
-                        sedangDipinjam.toString(),
-                        sedangDipinjam > 0 ? Colors.blue : Colors.grey,
-                        Icons.book_outlined,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: _buildModernStatCard(
-                        'Telah Dikembalikan',
-                        sudahDikembalikan.toString(),
-                        sudahDikembalikan > 0 ? Colors.green : Colors.grey,
-                        Icons.check_circle_outline,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: _buildModernStatCard(
-                        'Terlambat',
-                        terlambat.toString(),
-                        terlambat > 0 ? Colors.red : Colors.grey,
-                        Icons.warning_outlined,
-                      ),
-                    ),
+                    _buildMiniStatChip('Aktif: $sedangDipinjam', sedangDipinjam > 0 ? Colors.blue : Colors.grey.shade400),
+                    const SizedBox(width: 6),
+                    _buildMiniStatChip('Selesai: $sudahDikembalikan', sudahDikembalikan > 0 ? Colors.green : Colors.grey.shade400),
+                    if (terlambat > 0) ...[
+                      const SizedBox(width: 6),
+                      _buildMiniStatChip('Terlambat: $terlambat', Colors.red),
+                    ],
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 4),
+            ],
           ),
-        ],
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.transparent, Colors.grey.shade300, Colors.transparent],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // User Details
+                  _buildModernDetailRow(Icons.person_outline, 'Username', member.username),
+                  const SizedBox(height: 8),
+                  _buildModernDetailRow(Icons.email_outlined, 'Email', member.email),
+                  const SizedBox(height: 8),
+                  _buildModernDetailRow(Icons.badge_outlined, 'ID Member', member.id.toString()),
+                  const SizedBox(height: 8),
+                  _buildModernDetailRow(
+                    statusColor == Colors.red ? Icons.warning_outlined : 
+                    statusColor == Colors.blue ? Icons.book_outlined : Icons.check_circle_outline,
+                    'Status Saat Ini',
+                    memberStatus,
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Statistics Cards - Using IntrinsicHeight untuk konsistensi tinggi
+                  IntrinsicHeight(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildModernStatCard(
+                            'Sedang Dipinjam',
+                            sedangDipinjam.toString(),
+                            sedangDipinjam > 0 ? Colors.blue : Colors.grey,
+                            Icons.book_outlined,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: _buildModernStatCard(
+                            'Telah Dikembalikan',
+                            sudahDikembalikan.toString(),
+                            sudahDikembalikan > 0 ? Colors.green : Colors.grey,
+                            Icons.check_circle_outline,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: _buildModernStatCard(
+                            'Terlambat',
+                            terlambat.toString(),
+                            terlambat > 0 ? Colors.red : Colors.grey,
+                            Icons.warning_outlined,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1156,6 +1298,7 @@ class _MemberListScreenState extends State<MemberListScreen> {
                 fontSize: 14,
               ),
               textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -1196,16 +1339,18 @@ class _MemberListScreenState extends State<MemberListScreen> {
             ),
           ),
           const SizedBox(height: 1),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 6,
-              color: color.withOpacity(0.7),
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 9,
+                color: color.withOpacity(0.7),
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1215,53 +1360,11 @@ class _MemberListScreenState extends State<MemberListScreen> {
   Widget _buildModernPaginationControls() {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Column(
         children: [
-          // Previous button
+          // Page info dengan layout yang fleksibel
           Container(
-            decoration: BoxDecoration(
-              gradient: _currentPage > 1 
-                ? LinearGradient(colors: [Colors.purple.shade400, Colors.indigo.shade400])
-                : LinearGradient(colors: [Colors.grey.shade300, Colors.grey.shade400]),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: _currentPage > 1 ? [
-                BoxShadow(
-                  color: Colors.purple.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ] : [],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: _currentPage > 1 ? _prevPage : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '<',
-                        style: TextStyle(
-                          color: _currentPage > 1 ? Colors.white : Colors.grey.shade600,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          
-          const SizedBox(width: 20),
-          
-          // Page info
-          Container(
+            width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -1282,49 +1385,98 @@ class _MemberListScreenState extends State<MemberListScreen> {
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
               ),
+              textAlign: TextAlign.center,
             ),
           ),
           
-          const SizedBox(width: 20),
+          const SizedBox(height: 12),
           
-          // Next button
-          Container(
-            decoration: BoxDecoration(
-              gradient: _currentPage < _lastPage
-                ? LinearGradient(colors: [Colors.purple.shade400, Colors.indigo.shade400])
-                : LinearGradient(colors: [Colors.grey.shade300, Colors.grey.shade400]),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: _currentPage < _lastPage ? [
-                BoxShadow(
-                  color: Colors.purple.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+          // Navigation buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Previous button
+              Container(
+                decoration: BoxDecoration(
+                  gradient: _currentPage > 1 
+                    ? LinearGradient(colors: [Colors.purple.shade400, Colors.indigo.shade400])
+                    : LinearGradient(colors: [Colors.grey.shade300, Colors.grey.shade400]),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: _currentPage > 1 ? [
+                    BoxShadow(
+                      color: Colors.purple.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ] : [],
                 ),
-              ] : [],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: _currentPage < _lastPage ? _nextPage : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '>',
-                        style: TextStyle(
-                          color: _currentPage < _lastPage ? Colors.white : Colors.grey.shade600,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _currentPage > 1 ? _prevPage : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '<',
+                            style: TextStyle(
+                              color: _currentPage > 1 ? Colors.white : Colors.grey.shade600,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
+              
+              const SizedBox(width: 20),
+              
+              // Next button
+              Container(
+                decoration: BoxDecoration(
+                  gradient: _currentPage < _lastPage
+                    ? LinearGradient(colors: [Colors.purple.shade400, Colors.indigo.shade400])
+                    : LinearGradient(colors: [Colors.grey.shade300, Colors.grey.shade400]),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: _currentPage < _lastPage ? [
+                    BoxShadow(
+                      color: Colors.purple.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ] : [],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _currentPage < _lastPage ? _nextPage : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '>',
+                            style: TextStyle(
+                              color: _currentPage < _lastPage ? Colors.white : Colors.grey.shade600,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

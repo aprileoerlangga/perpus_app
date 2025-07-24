@@ -474,15 +474,15 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> with Ticker
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         child: Row(
-          children: [
-            Expanded(child: _buildStatCard('Total', stats['total']!, Icons.library_books, const Color(0xFF1976D2))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('Dipinjam', stats['borrowed']!, Icons.schedule, const Color(0xFFFF9800))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('Kembali', stats['returned']!, Icons.check_circle, const Color(0xFF4CAF50))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('Terlambat', stats['overdue']!, Icons.warning, const Color(0xFFF44336))),
-          ],
+          // children: [
+          //   Expanded(child: _buildStatCard('Total', stats['total']!, Icons.library_books, const Color(0xFF1976D2))),
+          //   const SizedBox(width: 12),
+          //   Expanded(child: _buildStatCard('Dipinjam', stats['borrowed']!, Icons.schedule, const Color(0xFFFF9800))),
+          //   const SizedBox(width: 12),
+          //   Expanded(child: _buildStatCard('Kembali', stats['returned']!, Icons.check_circle, const Color(0xFF4CAF50))),
+          //   const SizedBox(width: 12),
+          //   Expanded(child: _buildStatCard('Terlambat', stats['overdue']!, Icons.warning, const Color(0xFFF44336))),
+          // ],
         ),
       ),
     );
@@ -749,27 +749,40 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> with Ticker
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Book Icon
+                // Book Cover di kiri
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 54,
+                  height: 74,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1976D2), Color(0xFF1E88E5)],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1976D2).withOpacity(0.3),
+                        color: Colors.blue.shade100.withOpacity(0.15),
+                        blurRadius: 6,
                         offset: const Offset(0, 2),
-                        blurRadius: 8,
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.book_rounded,
-                    color: Colors.white,
-                    size: 24,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: (peminjaman.book.coverUrl != null && peminjaman.book.coverUrl!.isNotEmpty)
+                        ? Image.network(
+                            peminjaman.book.coverUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Center(
+                              child: Icon(Icons.menu_book_rounded, size: 32, color: Colors.blue.shade400),
+                            ),
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                            },
+                          )
+                        : Center(
+                            child: Icon(Icons.menu_book_rounded, size: 32, color: Colors.blue.shade400),
+                          ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -821,7 +834,7 @@ class _PeminjamanListScreenState extends State<PeminjamanListScreen> with Ticker
                     ],
                   ),
                 ),
-                // Status Badge
+                // Status Badge (tetap di kanan)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
